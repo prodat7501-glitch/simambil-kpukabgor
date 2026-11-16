@@ -2,7 +2,7 @@
  * Service Worker untuk SIMAMBIL PWA (Vercel Edition)
  * Caching shell UI & offline resilience
  */
-const CACHE_NAME = 'simambil-vercel-v2';
+const CACHE_NAME = 'simambil-vercel-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -10,6 +10,8 @@ const ASSETS_TO_CACHE = [
   '/config.js',
   '/app.js',
   '/manifest.json',
+  '/SIMAMBIL-LOGO.png',
+  '/logo-kpu.png',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
 
