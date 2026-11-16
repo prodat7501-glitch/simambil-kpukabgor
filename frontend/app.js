@@ -17,7 +17,6 @@ let currentRekapFilterStatus = 'ALL';
 
 // Inisialisasi saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
-  checkApiConfigNotice();
   initPagesState();
   renderPageSlots();
   loadMasterData();
@@ -30,13 +29,6 @@ document.addEventListener('DOMContentLoaded', () => {
  * 1. CONFIGURATION & BANNER NOTICE
  * ==============================================================================
  */
-function checkApiConfigNotice() {
-  const banner = document.getElementById('configNoticeBanner');
-  if (banner) {
-    banner.style.display = AppConfig.isConfigured() ? 'none' : 'flex';
-  }
-}
-
 function openSettingsModal() {
   const modal = document.getElementById('settingsModal');
   const input = document.getElementById('inputGasUrl');
@@ -50,7 +42,6 @@ function openSettingsModal() {
 function closeSettingsModal() {
   const modal = document.getElementById('settingsModal');
   if (modal) modal.classList.remove('active');
-  checkApiConfigNotice();
 }
 
 function saveGasUrl() {
