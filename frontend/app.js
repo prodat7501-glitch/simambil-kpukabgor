@@ -59,7 +59,8 @@ function updateOperatorHeaderUI() {
 function checkOperatorGate() {
   const op = getOperatorProfile();
   updateOperatorHeaderUI();
-  if (!op || !op.nama || !op.nip || !op.jabatan) {
+  const validJabatan = op && (op.jabatan === 'Sekretariat' || op.jabatan === 'Komisioner');
+  if (!op || !op.nama || !op.nip || !validJabatan) {
     openOperatorModal(false);
   }
 }
@@ -75,11 +76,18 @@ function openOperatorModal(canClose = true) {
   if (current) {
     if (inputNama) inputNama.value = current.nama || '';
     if (inputNip) inputNip.value = current.nip || '';
-    if (selectJabatan) selectJabatan.value = current.jabatan || '';
+    if (selectJabatan) {
+      if (current.jabatan === 'Sekretariat' || current.jabatan === 'Komisioner') {
+        selectJabatan.value = current.jabatan;
+      } else {
+        selectJabatan.value = '';
+      }
+    }
   }
 
+  const validJabatan = current && (current.jabatan === 'Sekretariat' || current.jabatan === 'Komisioner');
   if (closeBtn) {
-    closeBtn.style.display = (canClose && current && current.nama) ? 'flex' : 'none';
+    closeBtn.style.display = (canClose && current && current.nama && validJabatan) ? 'flex' : 'none';
   }
 
   if (modal) modal.classList.add('active');
@@ -87,8 +95,9 @@ function openOperatorModal(canClose = true) {
 
 function closeOperatorModal() {
   const op = getOperatorProfile();
-  if (!op || !op.nama || !op.nip || !op.jabatan) {
-    alert('Harap lengkapi seluruh data identitas operator terlebih dahulu.');
+  const validJabatan = op && (op.jabatan === 'Sekretariat' || op.jabatan === 'Komisioner');
+  if (!op || !op.nama || !op.nip || !validJabatan) {
+    alert('Harap lengkapi seluruh data identitas operator dan pilih Jabatan (Sekretariat atau Komisioner) terlebih dahulu.');
     return;
   }
   const modal = document.getElementById('operatorModal');
@@ -101,8 +110,8 @@ function handleOperatorFormSubmit(event) {
   const nip = (document.getElementById('inputOpNip')?.value || '').trim();
   const jabatan = (document.getElementById('selectOpJabatan')?.value || '').trim();
 
-  if (!nama || !nip || !jabatan) {
-    alert('Harap lengkapi semua kolom identitas operator!');
+  if (!nama || !nip || (jabatan !== 'Sekretariat' && jabatan !== 'Komisioner')) {
+    alert('Harap lengkapi semua kolom identitas dan pilih Jabatan (Sekretariat atau Komisioner)!');
     return;
   }
 
@@ -733,8 +742,9 @@ function deleteCurrentPhoto() {
  */
 async function startRenderAndUpload() {
   const op = getOperatorProfile();
-  if (!op || !op.nama || !op.nip || !op.jabatan) {
-    alert('Harap lengkapi identitas operator terlebih dahulu sebelum melakukan upload.');
+  const validJabatan = op && (op.jabatan === 'Sekretariat' || op.jabatan === 'Komisioner');
+  if (!op || !op.nama || !op.nip || !validJabatan) {
+    alert('Harap lengkapi identitas operator dan pilih Jabatan (Sekretariat atau Komisioner) terlebih dahulu.');
     openOperatorModal(false);
     return;
   }

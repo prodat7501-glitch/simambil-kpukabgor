@@ -37,7 +37,7 @@
 - Sebelum dapat menggunakan aplikasi, operator wajib menginputkan data diri:
   1. **Nama Lengkap**
   2. **NIP** (Nomor Induk Pegawai, atau nomor identitas resmi / tanda pengenal)
-  3. **Jabatan** (misal: Operator TPS, Anggota KPPS, Panitia Pemilihan Kecamatan, dll.)
+  3. **Jabatan** (Pilihan baku: `Sekretariat` atau `Komisioner`)
 - Data identitas disimpan pada memori lokal browser (`localStorage`) sehingga operator hanya perlu mengisinya satu kali.
 - Data identitas operator disertakan pada setiap transaksi unggahan:
   - Disematkan pada stempel **Watermark PDF**:

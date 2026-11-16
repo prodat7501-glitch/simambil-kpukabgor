@@ -33,7 +33,7 @@ Mencatat riwayat upload berkas yang berhasil masuk beserta identitas operator ya
 | J | DRIVE_URL | Link akses berkas di Drive |
 | K | NAMA_OPERATOR | Nama lengkap operator pengunggah |
 | L | NIP_OPERATOR | NIP / Nomor identitas operator |
-| M | JABATAN_OPERATOR | Jabatan operator (Operator TPS, KPPS, dll) |
+| M | JABATAN_OPERATOR | Jabatan operator (Sekretariat / Komisioner) |
 
 ### 4. Sheet / View: `Rekap_Progres`
 Menghitung status kelengkapan dokumen per TPS secara otomatis:
