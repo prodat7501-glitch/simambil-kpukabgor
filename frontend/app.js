@@ -1098,11 +1098,24 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
 
       doc.addImage(imgData, 'JPEG', margin, margin, renderWidth, renderHeight, undefined, 'FAST');
 
-      // Watermark Stempel Wilayah & Waktu & Operator di margin bawah
-      doc.setFontSize(7.5);
+      // Watermark Stempel Wilayah & Waktu & Operator di margin bawah (Adaptif 1 Baris)
       doc.setTextColor(90);
       const timestampStr = new Date().toLocaleString('id-ID');
       const watermarkText = `SIMAMBIL KPU Kab. Gorontalo | ${kecamatan} - ${desa} - TPS ${formatTpsNum(tps)} | Operator: ${op.nama} (${op.nip}) | Hal ${i + 1}/${filledSlots.length} | ${timestampStr}`;
+
+      const maxFooterWidth = renderWidth; // 190 mm
+      let footerFontSize = 7.5;
+      doc.setFontSize(footerFontSize);
+
+      if (typeof doc.getTextWidth === 'function') {
+        const textWidth = doc.getTextWidth(watermarkText);
+        if (textWidth > maxFooterWidth) {
+          // Perkecil ukuran huruf secara dinamis dan proporsional agar 100% pas dalam 1 baris
+          footerFontSize = Math.max(4.0, Number(((footerFontSize * (maxFooterWidth / textWidth)) * 0.97).toFixed(2)));
+          doc.setFontSize(footerFontSize);
+        }
+      }
+
       doc.text(watermarkText, margin, pageHeight - 5);
 
       updateProgress(25 + Math.round(((i + 1) / filledSlots.length) * 45));

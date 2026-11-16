@@ -71,4 +71,5 @@
 - Data identitas operator disertakan pada setiap transaksi unggahan:
   - Disematkan pada stempel **Watermark PDF**:
     `SIMAMBIL KPU Kab. Gorontalo | [KECAMATAN] - [DESA] - TPS [TPS] | Operator: [NAMA] ([NIP]) | Hal X/Y | [TIMESTAMP]`
+    *(Wajib termuat dalam 1 baris utuh; jika teks panjang karena nama desa/operator panjang, ukuran huruf otomatis diperkecil secara dinamis dan proporsional).*
   - Dicatat ke basis data **Log_Dokumen** (Kolom K, L, M) sebagai rekam jejak audit yang akuntabel.
