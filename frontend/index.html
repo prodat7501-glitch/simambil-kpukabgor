@@ -299,16 +299,40 @@
         </div>
       </div>
 
-      <!-- Quick Status Filter Bar -->
-      <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px;">
-        <button id="btnFilterAll" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="filterRekapStatus('ALL')">Semua</button>
-        <button id="btnFilterKosong" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-red);" onclick="filterRekapStatus('KOSONG')">🔴 Kosong</button>
-        <button id="btnFilterBelum" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-yellow);" onclick="filterRekapStatus('BELUM LENGKAP')">🟡 Belum Lengkap</button>
-        <button id="btnFilterLengkap" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-green);" onclick="filterRekapStatus('LENGKAP')">🟢 Lengkap</button>
+      <!-- View Mode Tabs (Wilayah vs TPS) -->
+      <div class="view-mode-tabs">
+        <button id="btnViewWilayah" class="view-tab-btn active" onclick="switchRekapViewMode('wilayah')">
+          📍 Ringkasan per Wilayah
+        </button>
+        <button id="btnViewTPS" class="view-tab-btn" onclick="switchRekapViewMode('tps')">
+          📋 Rincian per TPS
+        </button>
       </div>
 
-      <!-- Daftar TPS Card List -->
-      <div class="card" style="padding: 12px; margin-bottom: 80px;">
+      <!-- Quick Status Filter Bar -->
+      <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px;">
+        <button id="btnFilterPendingWilayah" class="btn btn-secondary btn-gold" style="padding: 4px 10px; font-size: 11px; font-weight: 700; white-space: nowrap;" onclick="filterRekapWilayah('PENDING')">🚨 Belum Diunggah</button>
+        <button id="btnFilterAll" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; white-space: nowrap;" onclick="filterRekapStatus('ALL')">Semua Wilayah</button>
+        <button id="btnFilterKosong" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-red); white-space: nowrap;" onclick="filterRekapStatus('KOSONG')">🔴 Kosong</button>
+        <button id="btnFilterBelum" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-yellow); white-space: nowrap;" onclick="filterRekapStatus('BELUM LENGKAP')">🟡 Belum Lengkap</button>
+        <button id="btnFilterLengkap" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-green); white-space: nowrap;" onclick="filterRekapStatus('LENGKAP')">🟢 Lengkap</button>
+      </div>
+
+      <!-- VIEW 1: Container Ringkasan Wilayah (Default Active) -->
+      <div id="viewWilayahContainer" class="card" style="padding: 12px; margin-bottom: 80px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 12px; font-weight: 700; color: #475569;" id="wilayahCountLabel">Memuat Wilayah...</span>
+          <input type="text" id="wilayahSearchInput" placeholder="Cari Kecamatan/Desa..." onkeyup="onWilayahSearch()" style="padding: 4px 8px; font-size: 11px; border: 1px solid var(--border-color); border-radius: 4px; width: 140px;">
+        </div>
+        <div id="rekapWilayahContainer" style="max-height: 520px; overflow-y: auto;">
+          <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;">
+            Memuat ringkasan wilayah...
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW 2: Container Daftar TPS -->
+      <div id="viewTPSContainer" class="card" style="padding: 12px; margin-bottom: 80px; display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
           <span style="font-size: 12px; font-weight: 700; color: #475569;" id="rekapCountLabel">Menampilkan 0 TPS</span>
           <input type="text" id="rekapSearchInput" placeholder="Cari TPS/Desa..." onkeyup="onRekapSearch()" style="padding: 4px 8px; font-size: 11px; border: 1px solid var(--border-color); border-radius: 4px; width: 130px;">

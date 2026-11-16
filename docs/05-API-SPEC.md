@@ -97,8 +97,31 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
     "totalTPS": 1205,
     "lengkap": 850,
     "belumLengkap": 205,
-    "kosong": 150
+    "kosong": 150,
+    "totalKecamatan": 19,
+    "kecamatanPending": 5
   },
+  "rekapKecamatan": [
+    {
+      "kecamatan": "ASPARAGA",
+      "totalTPS": 25,
+      "lengkap": 18,
+      "belumLengkap": 3,
+      "kosong": 4,
+      "persenLengkap": 72,
+      "desaList": [
+        {
+          "desa": "KARYA INDAH",
+          "totalTPS": 5,
+          "lengkap": 3,
+          "belumLengkap": 0,
+          "kosong": 2,
+          "tpsKosong": ["002", "003"],
+          "tpsBelumLengkap": []
+        }
+      ]
+    }
+  ],
   "records": [
     {
       "kecamatan": "ASPARAGA",

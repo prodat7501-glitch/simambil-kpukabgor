@@ -42,6 +42,10 @@
    - **KOSONG / PENDING (🔴):** Ditetapkan jika belum ada satupun dokumen yang diunggah untuk TPS tersebut (`totalUpload = 0`).
    - **Deteksi Halaman Hilang/Kurang:** Sistem menghitung selisih halaman secara presisi (`kurang = target - actual`). Jika berkas terunggah memiliki jumlah halaman di bawah target (misalnya DPR RI hanya 17 dari 20 halaman, artinya terdapat 3 halaman hilang/kurang), sistem menampilkan peringatan khusus (alert banner) dan indikator visual pada kartu TPS di menu Rekap & Monitoring agar segera ditindaklanjuti oleh koordinator/operator.
 
+3. **Deteksi Instan Wilayah Belum Diunggah (Overview Wilayah Tanpa Dropdown):**
+   - Menu Rekap & Monitoring menyediakan mode ringkasan per wilayah (Kecamatan & Desa) yang langsung menampilkan titik-titik wilayah yang belum mengunggah berkas secara instan tanpa mengharuskan pengguna memilih filter dropdown wilayah satu per satu.
+   - Pimpinan dan koordinator dapat langsung memilah wilayah pending/kosong dengan satu ketukan tombol filter (`🔴 Hanya Wilayah Belum Diunggah`), lengkap dengan jumlah TPS yang belum tuntas di setiap kecamatan dan desa.
+
 ### 5. Aturan Folder Penyimpanan Google Drive
 - Seluruh dokumen PDF yang diunggah disimpan pada Root Folder Google Drive target:
   - **Drive Folder ID:** `1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`

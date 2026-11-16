@@ -44,7 +44,10 @@ let currentFacingMode = 'environment';
 let cameraStream = null;
 let masterDataCache = null;
 let allRekapRecords = [];
+let rekapKecamatanList = [];
 let currentRekapFilterStatus = 'ALL';
+let currentRekapViewMode = 'wilayah'; // 'wilayah' atau 'tps'
+let currentWilayahFilter = 'PENDING'; // 'PENDING', 'ALL', 'KOSONG', 'LENGKAP'
 
 // Inisialisasi saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
@@ -1294,16 +1297,60 @@ function onRekapDataLoaded(res) {
   if (statKosong) statKosong.textContent = res.summary.kosong || 0;
 
   allRekapRecords = res.records || [];
+  rekapKecamatanList = res.rekapKecamatan || [];
+
+  renderRekapWilayah();
+  renderRekapList();
+}
+
+function switchRekapViewMode(mode) {
+  currentRekapViewMode = mode;
+  const btnWilayah = document.getElementById('btnViewWilayah');
+  const btnTPS = document.getElementById('btnViewTPS');
+  const viewWilayah = document.getElementById('viewWilayahContainer');
+  const viewTPS = document.getElementById('viewTPSContainer');
+
+  if (mode === 'wilayah') {
+    btnWilayah?.classList.add('active');
+    btnTPS?.classList.remove('active');
+    if (viewWilayah) viewWilayah.style.display = 'block';
+    if (viewTPS) viewTPS.style.display = 'none';
+    renderRekapWilayah();
+  } else {
+    btnTPS?.classList.add('active');
+    btnWilayah?.classList.remove('active');
+    if (viewTPS) viewTPS.style.display = 'block';
+    if (viewWilayah) viewWilayah.style.display = 'none';
+    renderRekapList();
+  }
+}
+
+function filterRekapWilayah(filter) {
+  currentWilayahFilter = filter;
+  currentRekapFilterStatus = 'ALL';
+
+  const btns = ['btnFilterPendingWilayah', 'btnFilterAll', 'btnFilterKosong', 'btnFilterBelum', 'btnFilterLengkap'];
+  btns.forEach(id => {
+    document.getElementById(id)?.classList.remove('btn-gold');
+  });
+
+  if (filter === 'PENDING') {
+    document.getElementById('btnFilterPendingWilayah')?.classList.add('btn-gold');
+  } else {
+    document.getElementById('btnFilterAll')?.classList.add('btn-gold');
+  }
+
+  renderRekapWilayah();
   renderRekapList();
 }
 
 function filterRekapStatus(status) {
   currentRekapFilterStatus = status;
+  currentWilayahFilter = status;
   
-  const btns = ['btnFilterAll', 'btnFilterKosong', 'btnFilterBelum', 'btnFilterLengkap'];
+  const btns = ['btnFilterPendingWilayah', 'btnFilterAll', 'btnFilterKosong', 'btnFilterBelum', 'btnFilterLengkap'];
   btns.forEach(id => {
-    const btn = document.getElementById(id);
-    if (btn) btn.classList.remove('btn-gold');
+    document.getElementById(id)?.classList.remove('btn-gold');
   });
 
   if (status === 'ALL') document.getElementById('btnFilterAll')?.classList.add('btn-gold');
@@ -1311,7 +1358,231 @@ function filterRekapStatus(status) {
   if (status === 'BELUM LENGKAP') document.getElementById('btnFilterBelum')?.classList.add('btn-gold');
   if (status === 'LENGKAP') document.getElementById('btnFilterLengkap')?.classList.add('btn-gold');
 
+  renderRekapWilayah();
   renderRekapList();
+}
+
+function getAggregatedRekapKecamatan() {
+  if (rekapKecamatanList && rekapKecamatanList.length > 0) {
+    return rekapKecamatanList;
+  }
+
+  const kecMap = new Map();
+  allRekapRecords.forEach(rec => {
+    if (!kecMap.has(rec.kecamatan)) {
+      kecMap.set(rec.kecamatan, {
+        kecamatan: rec.kecamatan,
+        totalTPS: 0,
+        lengkap: 0,
+        belumLengkap: 0,
+        kosong: 0,
+        desaMap: new Map()
+      });
+    }
+    const kObj = kecMap.get(rec.kecamatan);
+    kObj.totalTPS++;
+    if (rec.status === 'LENGKAP') kObj.lengkap++;
+    else if (rec.status === 'BELUM LENGKAP') kObj.belumLengkap++;
+    else kObj.kosong++;
+
+    if (!kObj.desaMap.has(rec.desa)) {
+      kObj.desaMap.set(rec.desa, {
+        desa: rec.desa,
+        totalTPS: 0,
+        lengkap: 0,
+        belumLengkap: 0,
+        kosong: 0,
+        tpsKosong: [],
+        tpsBelumLengkap: []
+      });
+    }
+    const dObj = kObj.desaMap.get(rec.desa);
+    dObj.totalTPS++;
+    if (rec.status === 'LENGKAP') dObj.lengkap++;
+    else if (rec.status === 'BELUM LENGKAP') {
+      dObj.belumLengkap++;
+      dObj.tpsBelumLengkap.push(rec.tps);
+    } else {
+      dObj.kosong++;
+      dObj.tpsKosong.push(rec.tps);
+    }
+  });
+
+  const list = [];
+  kecMap.forEach(kObj => {
+    const desaList = [];
+    kObj.desaMap.forEach(dObj => {
+      desaList.push(dObj);
+    });
+    desaList.sort((a, b) => a.desa.localeCompare(b.desa));
+
+    list.push({
+      kecamatan: kObj.kecamatan,
+      totalTPS: kObj.totalTPS,
+      lengkap: kObj.lengkap,
+      belumLengkap: kObj.belumLengkap,
+      kosong: kObj.kosong,
+      persenLengkap: kObj.totalTPS > 0 ? Math.round((kObj.lengkap / kObj.totalTPS) * 100) : 0,
+      desaList: desaList
+    });
+  });
+
+  list.sort((a, b) => a.kecamatan.localeCompare(b.kecamatan));
+  rekapKecamatanList = list;
+  return list;
+}
+
+function onWilayahSearch() {
+  renderRekapWilayah();
+}
+
+function renderRekapWilayah() {
+  const container = document.getElementById('rekapWilayahContainer');
+  const countLabel = document.getElementById('wilayahCountLabel');
+  const searchKeyword = (document.getElementById('wilayahSearchInput')?.value || '').trim().toLowerCase();
+
+  if (!container) return;
+
+  const data = getAggregatedRekapKecamatan();
+
+  let filtered = data.filter(k => {
+    if (currentWilayahFilter === 'PENDING') {
+      return k.kosong > 0 || k.belumLengkap > 0;
+    }
+    if (currentWilayahFilter === 'KOSONG' || currentRekapFilterStatus === 'KOSONG') {
+      return k.kosong > 0;
+    }
+    if (currentWilayahFilter === 'BELUM LENGKAP' || currentRekapFilterStatus === 'BELUM LENGKAP') {
+      return k.belumLengkap > 0;
+    }
+    if (currentWilayahFilter === 'LENGKAP' || currentRekapFilterStatus === 'LENGKAP') {
+      return k.kosong === 0 && k.belumLengkap === 0 && k.lengkap > 0;
+    }
+    return true;
+  });
+
+  if (searchKeyword) {
+    filtered = filtered.filter(k => {
+      const matchKec = k.kecamatan.toLowerCase().includes(searchKeyword);
+      const matchDesa = k.desaList.some(d => d.desa.toLowerCase().includes(searchKeyword));
+      return matchKec || matchDesa;
+    });
+  }
+
+  const countPendingKec = data.filter(k => k.kosong > 0 || k.belumLengkap > 0).length;
+  const countPendingTPS = data.reduce((acc, k) => acc + k.kosong + k.belumLengkap, 0);
+
+  if (countLabel) {
+    countLabel.textContent = `Menampilkan ${filtered.length} Kecamatan`;
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px;">
+        ${currentWilayahFilter === 'PENDING' ? '🎉 Seluruh wilayah telah tuntas diunggah!' : 'Tidak ada data kecamatan yang cocok dengan kriteria filter.'}
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+
+  // Banner ringkasan jika ada wilayah belum diunggah
+  if (countPendingKec > 0 && currentWilayahFilter === 'PENDING') {
+    const alertBox = document.createElement('div');
+    alertBox.className = 'rekap-missing-alert';
+    alertBox.style.marginBottom = '10px';
+    alertBox.innerHTML = `
+      <div style="font-weight: 700; display: flex; align-items: center; gap: 5px;">
+        <span>🚨 Terdeteksi ${countPendingKec} Kecamatan (${countPendingTPS} TPS) Belum Selesai Diunggah:</span>
+      </div>
+      <div style="font-size: 10.5px; color: #881337; margin-top: 2px;">
+        Daftar di bawah langsung terbuka menampilkan Desa dan nomor TPS yang belum difoto tanpa perlu memilih dropdown.
+      </div>
+    `;
+    container.appendChild(alertBox);
+  }
+
+  filtered.forEach(k => {
+    const card = document.createElement('div');
+    const isPending = k.kosong > 0 || k.belumLengkap > 0;
+    card.className = 'wilayah-card' + (isPending ? ' has-pending' : ' is-complete');
+
+    let desaRowsHtml = '';
+    k.desaList.forEach(d => {
+      let tpsBadgesHtml = '';
+      if (d.kosong > 0) {
+        tpsBadgesHtml += `<span class="wilayah-pill kosong">🔴 ${d.kosong} TPS Kosong (${d.tpsKosong.map(t => 'TPS ' + t).join(', ')})</span>`;
+      }
+      if (d.belumLengkap > 0) {
+        tpsBadgesHtml += `<span class="wilayah-pill belum" style="margin-left: 4px;">🟡 ${d.belumLengkap} TPS Belum Lengkap (${d.tpsBelumLengkap.map(t => 'TPS ' + t).join(', ')})</span>`;
+      }
+      if (d.lengkap > 0) {
+        tpsBadgesHtml += `<span class="wilayah-pill lengkap" style="margin-left: 4px;">🟢 ${d.lengkap} TPS Selesai</span>`;
+      }
+
+      const targetTps = d.tpsKosong.length > 0 ? d.tpsKosong[0] : (d.tpsBelumLengkap.length > 0 ? d.tpsBelumLengkap[0] : '');
+      const btnUpload = targetTps ? `
+        <button type="button" class="btn-upload-direct" onclick="event.stopPropagation(); selectTPSFromRekap('${escapeJs(k.kecamatan)}', '${escapeJs(d.desa)}', '${escapeJs(targetTps)}')">
+          Foto TPS ${targetTps} 📸
+        </button>
+      ` : '';
+
+      desaRowsHtml += `
+        <div class="wilayah-desa-item">
+          <div>
+            <div style="font-weight: 700; color: #1e293b;">Desa ${escapeHtml(d.desa)}</div>
+            <div style="margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px;">${tpsBadgesHtml}</div>
+          </div>
+          <div>${btnUpload}</div>
+        </div>
+      `;
+    });
+
+    const cardId = `wilayah_${escapeJs(k.kecamatan)}`.replace(/[^a-zA-Z0-9_]/g, '_');
+
+    card.innerHTML = `
+      <div class="wilayah-header" onclick="toggleWilayahDesa('${cardId}', this)">
+        <div style="flex: 1;">
+          <div class="wilayah-title">
+            <span>📍 Kec. ${escapeHtml(k.kecamatan)}</span>
+            ${k.kosong > 0 ? `<span class="wilayah-pill kosong">🔴 ${k.kosong} Kosong</span>` : ''}
+            ${k.belumLengkap > 0 ? `<span class="wilayah-pill belum">🟡 ${k.belumLengkap} Belum</span>` : ''}
+            ${k.lengkap === k.totalTPS && k.totalTPS > 0 ? `<span class="wilayah-pill lengkap">🟢 Tuntas</span>` : ''}
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+            Total: <strong>${k.totalTPS} TPS</strong> • Selesai: <strong>${k.lengkap}/${k.totalTPS} (${k.persenLengkap}%)</strong>
+          </div>
+        </div>
+        <div>
+          <span class="arrow-icon" style="font-size: 14px; color: var(--kpu-maroon); font-weight: 800;">${isPending ? '▴' : '▾'}</span>
+        </div>
+      </div>
+      <div class="wilayah-progress-bg">
+        <div class="wilayah-progress-fill" style="width: ${k.persenLengkap}%;"></div>
+      </div>
+      <div id="${cardId}" class="wilayah-desa-list ${isPending ? 'open' : ''}">
+        ${desaRowsHtml}
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+function toggleWilayahDesa(cardId, headerEl) {
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  const isOpen = el.classList.contains('open');
+  if (isOpen) {
+    el.classList.remove('open');
+    const arrow = headerEl?.querySelector('.arrow-icon');
+    if (arrow) arrow.textContent = '▾';
+  } else {
+    el.classList.add('open');
+    const arrow = headerEl?.querySelector('.arrow-icon');
+    if (arrow) arrow.textContent = '▴';
+  }
 }
 
 function onRekapSearch() {

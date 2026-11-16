@@ -512,14 +512,80 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       return a.tps.localeCompare(b.tps);
     });
 
+    // 5. Agregasi Ringkasan Wilayah per Kecamatan & Desa (SOT 06-BUSINESS-RULES.md)
+    const kecMap = new Map();
+    records.forEach(rec => {
+      if (!kecMap.has(rec.kecamatan)) {
+        kecMap.set(rec.kecamatan, {
+          kecamatan: rec.kecamatan,
+          totalTPS: 0,
+          lengkap: 0,
+          belumLengkap: 0,
+          kosong: 0,
+          desaMap: new Map()
+        });
+      }
+      const kObj = kecMap.get(rec.kecamatan);
+      kObj.totalTPS++;
+      if (rec.status === 'LENGKAP') kObj.lengkap++;
+      else if (rec.status === 'BELUM LENGKAP') kObj.belumLengkap++;
+      else kObj.kosong++;
+
+      if (!kObj.desaMap.has(rec.desa)) {
+        kObj.desaMap.set(rec.desa, {
+          desa: rec.desa,
+          totalTPS: 0,
+          lengkap: 0,
+          belumLengkap: 0,
+          kosong: 0,
+          tpsKosong: [],
+          tpsBelumLengkap: []
+        });
+      }
+      const dObj = kObj.desaMap.get(rec.desa);
+      dObj.totalTPS++;
+      if (rec.status === 'LENGKAP') dObj.lengkap++;
+      else if (rec.status === 'BELUM LENGKAP') {
+        dObj.belumLengkap++;
+        dObj.tpsBelumLengkap.push(rec.tps);
+      } else {
+        dObj.kosong++;
+        dObj.tpsKosong.push(rec.tps);
+      }
+    });
+
+    const rekapKecamatan = [];
+    kecMap.forEach(kObj => {
+      const desaList = [];
+      kObj.desaMap.forEach(dObj => {
+        desaList.push(dObj);
+      });
+      desaList.sort((a, b) => a.desa.localeCompare(b.desa));
+
+      rekapKecamatan.push({
+        kecamatan: kObj.kecamatan,
+        totalTPS: kObj.totalTPS,
+        lengkap: kObj.lengkap,
+        belumLengkap: kObj.belumLengkap,
+        kosong: kObj.kosong,
+        persenLengkap: kObj.totalTPS > 0 ? Math.round((kObj.lengkap / kObj.totalTPS) * 100) : 0,
+        desaList: desaList
+      });
+    });
+
+    rekapKecamatan.sort((a, b) => a.kecamatan.localeCompare(b.kecamatan));
+
     return {
       status: 'success',
       summary: {
         totalTPS: records.length,
         lengkap: countLengkap,
         belumLengkap: countBelumLengkap,
-        kosong: countKosong
+        kosong: countKosong,
+        totalKecamatan: rekapKecamatan.length,
+        kecamatanPending: rekapKecamatan.filter(k => k.kosong > 0 || k.belumLengkap > 0).length
       },
+      rekapKecamatan: rekapKecamatan,
       records: records
     };
 
