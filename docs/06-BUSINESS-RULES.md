@@ -21,10 +21,21 @@
 - Setiap foto yang diambil dari kamera beresolusi tinggi wajib dikompresi di sisi browser (client-side canvas) ke resolusi maksimal 1600x1200 dengan kualitas JPEG 0.7 - 0.8 sebelum dikonversi ke PDF.
 - File PDF gabungan berukuran di bawah 15 MB agar upload via HTTP REST API berjalan stabil tanpa timeout.
 
-### 4. Aturan Rekapitulasi & Deteksi Wilayah Pending
-- Suatu TPS dinyatakan **LENGKAP (🟢)** jika seluruh jenis dokumen/lembaga target (7 pemilihan) sudah terupload.
-- Suatu TPS dinyatakan **BELUM LENGKAP (🟡)** jika sudah ada minimal 1 dokumen terupload tetapi belum lengkap 7 pemilihan.
-- Suatu TPS dinyatakan **KOSONG / PENDING (🔴)** jika belum ada dokumen sama sekali yang tercatat di `Log_Dokumen`.
+### 4. Aturan Rekapitulasi, Target Halaman & Deteksi Wilayah Pending
+1. **Daftar Target Kelengkapan Halaman per Jenis Pemilihan / Lembaga:**
+   Untuk dinyatakan lengkap pada setiap jenis pemilihan, berkas dokumen yang diunggah wajib memenuhi target minimum jumlah halaman berikut:
+   - **PPWP (Presiden dan Wakil Presiden):** 3 Halaman
+   - **DPD RI:** 3 Halaman
+   - **DPR RI:** 20 Halaman
+   - **DPRD PROVINSI:** 20 Halaman
+   - **DPRD KABUPATEN/KOTA:** 20 Halaman
+   - **Gubernur dan Wakil Gubernur (PILGUB):** 3 Halaman
+   - **Bupati dan Wakil Bupati (PILBUP):** 3 Halaman
+
+2. **Aturan Evaluasi Status TPS:**
+   - **LENGKAP (🟢):** Ditetapkan jika dan hanya jika **seluruh 7 jenis pemilihan** telah diunggah dan **masing-masing telah memenuhi target halaman minimumnya**.
+   - **BELUM LENGKAP (🟡):** Ditetapkan jika sudah ada minimal 1 berkas diunggah pada TPS tersebut, namun **belum semua 7 pemilihan memenuhi target halaman masing-masing** (misal ada berkas yang halamannya masih kurang atau belum diunggah).
+   - **KOSONG / PENDING (🔴):** Ditetapkan jika belum ada satupun dokumen yang diunggah untuk TPS tersebut (`totalUpload = 0`).
 
 ### 5. Aturan Folder Penyimpanan Google Drive
 - Seluruh dokumen PDF yang diunggah disimpan pada Root Folder Google Drive target:

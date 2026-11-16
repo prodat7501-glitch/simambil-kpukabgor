@@ -5,8 +5,29 @@
  * ==============================================================================
  */
 
-// Global State
+// Global State & Aturan Halaman Lengkap SOT 06-BUSINESS-RULES.md
 const MAX_PAGES = 20;
+
+const TARGET_HALAMAN = {
+  'PPWP': 3,
+  'DPD-RI': 3,
+  'DPR-RI': 20,
+  'DPRD-PROV': 20,
+  'DPRD-KAB': 20,
+  'PILGUB': 3,
+  'PILBUP': 3
+};
+
+const SHORT_LEMBAGA_NAMES = {
+  'PPWP': 'PPWP',
+  'DPD-RI': 'DPD',
+  'DPR-RI': 'DPR',
+  'DPRD-PROV': 'DPRD-P',
+  'DPRD-KAB': 'DPRD-K',
+  'PILGUB': 'GUB',
+  'PILBUP': 'BUP'
+};
+
 let pagesState = []; // [{ page: 1, dataUrl: null, rotation: 0 }, ...]
 let activeSlotIndex = null;
 let currentFacingMode = 'environment';
@@ -24,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
   registerPWA();
   checkOperatorGate();
   syncAllPickers();
+  updateTargetPageUI();
 });
 
 /**
@@ -561,11 +583,55 @@ function formatTpsNum(tps) {
  * SOT: 03-UI-GUIDELINE.md & 06-BUSINESS-RULES.md
  * ==============================================================================
  */
+
+function onLembagaSelectionChanged() {
+  updateGeneratedFilename();
+  updateTargetPageUI();
+  renderPageSlots();
+  syncAllPickers();
+}
+
+function updateTargetPageUI() {
+  const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  const targetPages = TARGET_HALAMAN[selectedLembaga] || 3;
+  const filledCount = pagesState.filter(p => p.dataUrl).length;
+
+  const targetInfoText = document.getElementById('targetPageInfoText');
+  const targetInfoStatus = document.getElementById('targetPageInfoStatus');
+  const slotHint = document.getElementById('slotInstructionHint');
+
+  if (targetInfoText) {
+    targetInfoText.textContent = `${targetPages} Halaman`;
+  }
+
+  if (targetInfoStatus) {
+    if (filledCount >= targetPages) {
+      targetInfoStatus.textContent = `✓ ${filledCount}/${targetPages} Terpenuhi`;
+      targetInfoStatus.style.color = '#15803d';
+      targetInfoStatus.style.background = '#dcfce7';
+    } else if (filledCount > 0) {
+      targetInfoStatus.textContent = `Kurang ${targetPages - filledCount} Halaman`;
+      targetInfoStatus.style.color = '#854d0e';
+      targetInfoStatus.style.background = '#fef9c3';
+    } else {
+      targetInfoStatus.textContent = `0 / ${targetPages} Terisi`;
+      targetInfoStatus.style.color = '#e11d48';
+      targetInfoStatus.style.background = '#ffe4e6';
+    }
+  }
+
+  if (slotHint) {
+    slotHint.innerHTML = `Ketuk slot foto untuk memotret berkas. Standar lengkap untuk <strong>${selectedLembaga}</strong> adalah minimal <strong>${targetPages} Halaman</strong>.`;
+  }
+}
+
 function renderPageSlots() {
   const container = document.getElementById('pageSlotsGrid');
   if (!container) return;
   container.innerHTML = '';
 
+  const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  const targetPages = TARGET_HALAMAN[selectedLembaga] || 3;
   let filledCount = 0;
 
   pagesState.forEach((slot, index) => {
@@ -584,9 +650,14 @@ function renderPageSlots() {
       `;
     } else {
       const padNum = ('00' + slot.page).slice(-2);
+      const isTargetSlot = slot.page <= targetPages;
+      const targetBadge = isTargetSlot 
+        ? `<span style="font-size: 8px; font-weight: 700; color: #991b1b; background: #fee2e2; padding: 1px 4px; border-radius: 3px; margin-top: 2px;">Wajib</span>` 
+        : '';
       card.innerHTML = `
         <span class="slot-number">${padNum}</span>
         <span class="slot-label">Hal ${slot.page}</span>
+        ${targetBadge}
       `;
     }
 
@@ -595,8 +666,16 @@ function renderPageSlots() {
 
   const badge = document.getElementById('pageCountBadge');
   if (badge) {
-    badge.textContent = `${filledCount} / ${MAX_PAGES} Terisi`;
-    badge.style.backgroundColor = filledCount > 0 ? 'var(--status-green)' : 'var(--kpu-maroon)';
+    if (filledCount >= targetPages) {
+      badge.textContent = `${filledCount} Terisi (Target ${targetPages} Hal ✓)`;
+      badge.style.backgroundColor = 'var(--status-green)';
+    } else if (filledCount > 0) {
+      badge.textContent = `${filledCount} Terisi (Kurang ${targetPages - filledCount} Hal)`;
+      badge.style.backgroundColor = 'var(--status-yellow)';
+    } else {
+      badge.textContent = `0 / ${MAX_PAGES} Terisi (Target ${targetPages} Hal)`;
+      badge.style.backgroundColor = 'var(--kpu-maroon)';
+    }
   }
 
   const btnProcess = document.getElementById('btnProcessUpload');
@@ -609,6 +688,8 @@ function renderPageSlots() {
         : 'Render & Simpan PDF';
     }
   }
+
+  updateTargetPageUI();
 }
 
 function onSlotClicked(index) {
@@ -1230,14 +1311,52 @@ function renderRekapList() {
       statusIcon = '🟡';
     }
 
+    const totalLengkap = rec.totalLengkap !== undefined ? rec.totalLengkap : (rec.status === 'LENGKAP' ? 7 : (rec.totalUpload || 0));
+
+    // Siapkan mini-chips status per lembaga sesuai target halaman (SOT 06-BUSINESS-RULES.md)
+    const targetKeys = ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+    let chipsHtml = '<div class="rekap-chips-row">';
+
+    targetKeys.forEach(k => {
+      const short = SHORT_LEMBAGA_NAMES[k] || k;
+      const targetHal = TARGET_HALAMAN[k] || 3;
+      const detail = rec.detailHalaman && rec.detailHalaman[k];
+
+      let isCompleted = false;
+      let actualHal = 0;
+      if (detail) {
+        actualHal = detail.actual || 0;
+        isCompleted = detail.lengkap;
+      } else if (rec.rincian) {
+        isCompleted = !!rec.rincian[k];
+        actualHal = isCompleted ? targetHal : 0;
+      }
+
+      let chipClass = 'kosong';
+      let icon = '';
+      if (isCompleted) {
+        chipClass = 'lengkap';
+        icon = '✓ ';
+      } else if (actualHal > 0) {
+        chipClass = 'belum';
+        icon = '⚠️ ';
+      }
+
+      chipsHtml += `<span class="rekap-chip ${chipClass}">${icon}${short}: ${actualHal}/${targetHal}</span>`;
+    });
+    chipsHtml += '</div>';
+
     card.innerHTML = `
-      <div class="rekap-item-left">
-        <span class="rekap-tps-title">TPS ${rec.tps} - ${rec.desa}</span>
-        <span class="rekap-tps-sub">Kec. ${rec.kecamatan} • Terupload: ${rec.totalUpload || 0}/7 Lembaga</span>
+      <div class="rekap-item-top">
+        <div class="rekap-item-left">
+          <span class="rekap-tps-title">TPS ${rec.tps} - ${rec.desa}</span>
+          <span class="rekap-tps-sub">Kec. ${rec.kecamatan} • Kelengkapan: <strong>${totalLengkap}/7 Lembaga</strong></span>
+        </div>
+        <div>
+          <span class="status-badge ${badgeClass}" style="white-space: nowrap;">${statusIcon} ${rec.status}</span>
+        </div>
       </div>
-      <div>
-        <span class="status-badge ${badgeClass}">${statusIcon} ${rec.status}</span>
-      </div>
+      ${chipsHtml}
     `;
 
     container.appendChild(card);

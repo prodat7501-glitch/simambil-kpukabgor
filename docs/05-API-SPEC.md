@@ -83,7 +83,7 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
 ---
 
 ### 3. Endpoint: `GET ?action=getMonitoringSummary`
-- **Fungsi:** Mengambil rekap status dokumentasi per TPS, menghitung TPS lengkap, belum lengkap, dan kosong (pending).
+- **Fungsi:** Mengambil rekap status dokumentasi per TPS, menghitung TPS lengkap, belum lengkap, dan kosong (pending) berdasarkan target kelengkapan halaman (PPWP: 3, DPD: 3, DPR: 20, DPRD-Prov: 20, DPRD-Kab: 20, Pilgub: 3, Pilbup: 3).
 - **Method:** `GET`
 - **URL Parameters:**
   - `action=getMonitoringSummary`
@@ -104,17 +104,27 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
       "kecamatan": "ASPARAGA",
       "desa": "KARYA INDAH",
       "tps": "001",
-      "status": "KOSONG",
-      "totalUpload": 0,
+      "status": "BELUM LENGKAP",
+      "totalLengkap": 2,
+      "totalUpload": 2,
       "targetTotal": 7,
       "rincian": {
-        "PPWP": false,
+        "PPWP": true,
         "DPR-RI": false,
-        "DPD-RI": false,
+        "DPD-RI": true,
         "DPRD-PROV": false,
         "DPRD-KAB": false,
         "PILGUB": false,
         "PILBUP": false
+      },
+      "detailHalaman": {
+        "PPWP": { "actual": 3, "target": 3, "lengkap": true },
+        "DPR-RI": { "actual": 0, "target": 20, "lengkap": false },
+        "DPD-RI": { "actual": 3, "target": 3, "lengkap": true },
+        "DPRD-PROV": { "actual": 0, "target": 20, "lengkap": false },
+        "DPRD-KAB": { "actual": 0, "target": 20, "lengkap": false },
+        "PILGUB": { "actual": 0, "target": 3, "lengkap": false },
+        "PILBUP": { "actual": 0, "target": 3, "lengkap": false }
       }
     }
   ]

@@ -333,11 +333,22 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       return getFallbackMonitoringSummary(filterKecamatan, filterDesa);
     }
 
-    // 1. Ambil daftar target 7 Lembaga
+    // 1. Ambil daftar target 7 Lembaga beserta target jumlah halamannya
+    // SOT 06-BUSINESS-RULES.md:
+    // PPWP: 3 hal, DPD-RI: 3 hal, DPR-RI: 20 hal, DPRD-PROV: 20 hal, DPRD-KAB: 20 hal, PILGUB: 3 hal, PILBUP: 3 hal
     const targetLembaga = ['PPWP', 'DPR-RI', 'DPD-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+    const TARGET_HALAMAN = {
+      'PPWP': 3,
+      'DPD-RI': 3,
+      'DPR-RI': 20,
+      'DPRD-PROV': 20,
+      'DPRD-KAB': 20,
+      'PILGUB': 3,
+      'PILBUP': 3
+    };
 
-    // 2. Baca Log Dokumen untuk pemetaan upload per TPS
-    // Map key: "KECAMATAN|DESA|TPS" => Set of uploaded KODE_LEMBAGA
+    // 2. Baca Log Dokumen untuk pemetaan upload per TPS & jumlah halaman maksimal yang terupload
+    // Map key: "KECAMATAN|DESA|TPS" => Object { [kodeLembaga]: maxPagesUploaded }
     const uploadMap = new Map();
 
     if (sheetLog && sheetLog.getLastRow() > 1) {
@@ -348,15 +359,64 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
         const desa = String(row[5] || '').trim().toUpperCase();
         const tps = formatTPS(String(row[6] || '').trim());
         const kodeLembaga = normalizeKodeLembaga(String(row[3] || '').trim());
+        const hal = parseInt(String(row[7] || ''), 10) || 1;
+
+        if (!kec || !desa || !tps || !kodeLembaga) continue;
 
         const key = kec + '|' + desa + '|' + tps;
         if (!uploadMap.has(key)) {
-          uploadMap.set(key, new Set());
+          uploadMap.set(key, {});
         }
-        if (kodeLembaga) {
-          uploadMap.get(key).add(kodeLembaga);
-        }
+        const pagesMap = uploadMap.get(key);
+        pagesMap[kodeLembaga] = Math.max(pagesMap[kodeLembaga] || 0, hal);
       }
+    }
+
+    // Helper evaluasi kelengkapan dokumen per TPS
+    function evaluateTpsRecords(tpsPagesMap) {
+      const tpsPages = tpsPagesMap || {};
+      const rincian = {};
+      const detailHalaman = {};
+      let totalLengkap = 0;
+      let totalDokumenUpload = 0;
+
+      targetLembaga.forEach(kode => {
+        const targetHal = TARGET_HALAMAN[kode] || 1;
+        const actualHal = tpsPages[kode] || 0;
+        const isLengkap = actualHal >= targetHal;
+
+        rincian[kode] = isLengkap;
+        detailHalaman[kode] = {
+          actual: actualHal,
+          target: targetHal,
+          lengkap: isLengkap
+        };
+
+        if (isLengkap) totalLengkap++;
+        if (actualHal > 0) totalDokumenUpload++;
+      });
+
+      // Aturan SOT 06-BUSINESS-RULES.md:
+      // LENGKAP: Seluruh 7 lembaga memenuhi target halamannya masing-masing
+      // BELUM LENGKAP: Minimal 1 berkas terupload, tetapi belum semua 7 lembaga memenuhi target
+      // KOSONG: Belum ada berkas apapun yang terupload (0 uploads)
+      let status = 'KOSONG';
+      if (totalLengkap === targetLembaga.length) {
+        status = 'LENGKAP';
+      } else if (totalDokumenUpload > 0) {
+        status = 'BELUM LENGKAP';
+      } else {
+        status = 'KOSONG';
+      }
+
+      return {
+        status: status,
+        totalLengkap: totalLengkap,
+        totalUpload: totalDokumenUpload,
+        targetTotal: targetLembaga.length,
+        rincian: rincian,
+        detailHalaman: detailHalaman
+      };
     }
 
     // 3. Baca Master Wilayah dan hitung status per TPS
@@ -384,27 +444,13 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       if (normFilterKec && kec !== normFilterKec) continue;
       if (normFilterDesa && desa !== normFilterDesa) continue;
 
-      const uploadedSet = uploadMap.get(key) || new Set();
+      const evalResult = evaluateTpsRecords(uploadMap.get(key));
 
-      const rincian = {};
-      let totalUpload = 0;
-      targetLembaga.forEach(kode => {
-        const isUploaded = uploadedSet.has(kode);
-        rincian[kode] = isUploaded;
-        if (isUploaded) totalUpload++;
-      });
-
-      // Aturan SOT 06-BUSINESS-RULES.md:
-      // LENGKAP (7/7) | BELUM LENGKAP (>0) | KOSONG (0)
-      let status = 'KOSONG';
-      if (totalUpload === targetLembaga.length) {
-        status = 'LENGKAP';
+      if (evalResult.status === 'LENGKAP') {
         countLengkap++;
-      } else if (totalUpload > 0) {
-        status = 'BELUM LENGKAP';
+      } else if (evalResult.status === 'BELUM LENGKAP') {
         countBelumLengkap++;
       } else {
-        status = 'KOSONG';
         countKosong++;
       }
 
@@ -412,15 +458,17 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
         kecamatan: kec,
         desa: desa,
         tps: tps,
-        status: status,
-        totalUpload: totalUpload,
-        targetTotal: targetLembaga.length,
-        rincian: rincian
+        status: evalResult.status,
+        totalLengkap: evalResult.totalLengkap,
+        totalUpload: evalResult.totalUpload,
+        targetTotal: evalResult.targetTotal,
+        rincian: evalResult.rincian,
+        detailHalaman: evalResult.detailHalaman
       });
     }
 
     // 4. Tambahkan juga TPS dari Log jika ada berkas yang diunggah tetapi belum terdata di Master_Wilayah
-    uploadMap.forEach((uploadedSet, key) => {
+    uploadMap.forEach((tpsPages, key) => {
       if (processedKeys.has(key)) return;
       const parts = key.split('|');
       if (parts.length < 3) return;
@@ -431,23 +479,13 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       if (normFilterKec && kec !== normFilterKec) return;
       if (normFilterDesa && desa !== normFilterDesa) return;
 
-      const rincian = {};
-      let totalUpload = 0;
-      targetLembaga.forEach(kode => {
-        const isUploaded = uploadedSet.has(kode);
-        rincian[kode] = isUploaded;
-        if (isUploaded) totalUpload++;
-      });
+      const evalResult = evaluateTpsRecords(tpsPages);
 
-      let status = 'KOSONG';
-      if (totalUpload === targetLembaga.length) {
-        status = 'LENGKAP';
+      if (evalResult.status === 'LENGKAP') {
         countLengkap++;
-      } else if (totalUpload > 0) {
-        status = 'BELUM LENGKAP';
+      } else if (evalResult.status === 'BELUM LENGKAP') {
         countBelumLengkap++;
       } else {
-        status = 'KOSONG';
         countKosong++;
       }
 
@@ -455,10 +493,12 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
         kecamatan: kec,
         desa: desa,
         tps: tps,
-        status: status,
-        totalUpload: totalUpload,
-        targetTotal: targetLembaga.length,
-        rincian: rincian
+        status: evalResult.status,
+        totalLengkap: evalResult.totalLengkap,
+        totalUpload: evalResult.totalUpload,
+        targetTotal: evalResult.targetTotal,
+        rincian: evalResult.rincian,
+        detailHalaman: evalResult.detailHalaman
       });
     });
 

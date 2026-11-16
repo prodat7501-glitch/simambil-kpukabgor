@@ -36,22 +36,22 @@ Mencatat riwayat upload berkas yang berhasil masuk beserta identitas operator ya
 | M | JABATAN_OPERATOR | Jabatan operator (Sekretariat / Komisioner) |
 
 ### 4. Sheet / View: `Rekap_Progres`
-Menghitung status kelengkapan dokumen per TPS secara otomatis:
+Menghitung status kelengkapan dokumen per TPS secara otomatis dengan evaluasi target halaman per lembaga:
 | Kolom | Nama Field | Formula / Keterangan |
 |---|---|---|
 | A | ID_TPS | Referensi dari `Master_Wilayah` |
 | B | NAMA_KEC | Nama Kecamatan |
 | C | NAMA_DESA | Nama Desa |
 | D | NO_TPS | Nomor TPS |
-| E | PPWP | Cek status upload PPWP |
-| F | DPR_RI | Cek status upload DPR RI |
-| G | DPD_RI | Cek status upload DPD RI |
-| H | DPRD_PROV | Cek status upload DPRD Provinsi |
-| I | DPRD_KAB | Cek status upload DPRD Kab/Kota |
-| J | PILGUB | Cek status upload Gubernur & Wagub |
-| K | PILBUP | Cek status upload Bupati & Wagub |
-| L | TOTAL_UPLOAD | Jumlah jenis lembaga yang sudah diunggah |
-| M | STATUS_AKHIR | `IF(TOTAL=7, "LENGKAP", IF(TOTAL>0, "BELUM LENGKAP", "KOSONG"))` |
+| E | PPWP | Cek status upload PPWP (Wajib $\ge$ 3 Halaman) |
+| F | DPR_RI | Cek status upload DPR RI (Wajib $\ge$ 20 Halaman) |
+| G | DPD_RI | Cek status upload DPD RI (Wajib $\ge$ 3 Halaman) |
+| H | DPRD_PROV | Cek status upload DPRD Provinsi (Wajib $\ge$ 20 Halaman) |
+| I | DPRD_KAB | Cek status upload DPRD Kab/Kota (Wajib $\ge$ 20 Halaman) |
+| J | PILGUB | Cek status upload Gubernur & Wagub (Wajib $\ge$ 3 Halaman) |
+| K | PILBUP | Cek status upload Bupati & Wagub (Wajib $\ge$ 3 Halaman) |
+| L | TOTAL_LENGKAP | Jumlah jenis lembaga yang memenuhi target halaman (0 - 7) |
+| M | STATUS_AKHIR | `IF(TOTAL_LENGKAP=7, "LENGKAP", IF(TOTAL_UPLOAD>0, "BELUM LENGKAP", "KOSONG"))` |
 
 ### 5. Aturan Keamanan Data & Idempotensi Setup Database (Safe Migration Mode)
 - **Non-Destructive Initialization:** Fungsi `setupDatabase()` dilarang keras memanggil `.clear()` pada sheet yang telah memiliki data.

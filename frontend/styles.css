@@ -1017,23 +1017,32 @@ body {
 .rekap-item-card {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 12px;
+  padding: 10px 12px;
   margin-bottom: 8px;
   background: #FFFFFF;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: all 0.15s ease;
 }
 
 .rekap-item-card:hover {
   background-color: #F8FAFC;
+  border-color: #CBD5E1;
+}
+
+.rekap-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .rekap-item-left {
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .rekap-tps-title {
@@ -1045,6 +1054,42 @@ body {
 .rekap-tps-sub {
   font-size: 11px;
   color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.rekap-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rekap-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.rekap-chip.lengkap {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #86EFAC;
+  font-weight: 700;
+}
+
+.rekap-chip.belum {
+  background: #FEF9C3;
+  color: #854D0E;
+  border: 1px solid #FDE047;
+  font-weight: 700;
+}
+
+.rekap-chip.kosong {
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #CBD5E1;
 }
 
 .status-badge {
