@@ -924,14 +924,28 @@ function openCameraModal(index) {
 
   if (metaEl) {
     metaEl.textContent = docMetaStr;
-    // Skala dinamis agar pas dalam 1 baris di layar smartphone
-    if (docMetaStr.length > 34) {
-      metaEl.style.fontSize = '8.5px';
-    } else if (docMetaStr.length > 26) {
-      metaEl.style.fontSize = '9.5px';
+
+    // Skala dinamis awal berbasis panjang karakter
+    const len = docMetaStr.length;
+    let baseSize = 8.5;
+    let baseSpacing = '-0.3px';
+
+    if (len > 44) {
+      baseSize = 7.0;
+      baseSpacing = '-0.45px';
+    } else if (len > 36) {
+      baseSize = 7.8;
+      baseSpacing = '-0.35px';
+    } else if (len > 28) {
+      baseSize = 8.6;
+      baseSpacing = '-0.25px';
     } else {
-      metaEl.style.fontSize = '10.5px';
+      baseSize = 9.8;
+      baseSpacing = 'normal';
     }
+
+    metaEl.style.fontSize = baseSize + 'px';
+    metaEl.style.letterSpacing = baseSpacing;
   }
 
   if (title) {
@@ -939,6 +953,18 @@ function openCameraModal(index) {
   }
 
   modal.classList.add('active');
+
+  // Dynamic auto-fit check saat modal aktif (DOM rendered):
+  // Menjamin 100% seluruh teks termasuk nomor TPS selalu utuh terlihat tanpa terpotong ellipsis
+  requestAnimationFrame(() => {
+    if (metaEl && metaEl.clientWidth > 0) {
+      let currentSize = parseFloat(window.getComputedStyle(metaEl).fontSize) || 8.0;
+      while (metaEl.scrollWidth > metaEl.clientWidth && currentSize > 5.5) {
+        currentSize -= 0.3;
+        metaEl.style.fontSize = currentSize + 'px';
+      }
+    }
+  });
 
   startCameraStream();
 }
