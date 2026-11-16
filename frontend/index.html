@@ -42,12 +42,6 @@
             <span class="pulse-dot"></span>
             <span id="connStatus">ONLINE</span>
           </div>
-          <button class="icon-btn-header" onclick="openSettingsModal()" title="Pengaturan Endpoint API">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -504,40 +498,6 @@
       <div></div>
     </div>
 
-    <!-- ========================================================================= -->
-    <!-- SETTINGS MODAL (PENGATURAN ENDPOINT API)                                  -->
-    <!-- ========================================================================= -->
-    <div id="settingsModal" class="generic-modal">
-      <div style="display: flex; justify-content: flex-end;">
-        <button class="camera-close-btn" onclick="closeSettingsModal()">&times;</button>
-      </div>
-
-      <div class="dialog-box">
-        <h3 style="font-size: 16px; font-weight: 700; color: var(--kpu-maroon); margin-bottom: 8px;">
-          ⚙️ Pengaturan Endpoint GAS
-        </h3>
-        <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">
-          Masukkan URL Web App hasil Deploy Google Apps Script untuk menghubungkan frontend Vercel dengan database Google Sheets & Drive.
-        </p>
-
-        <div class="form-group">
-          <label class="form-label" for="inputGasUrl">Google Apps Script Web App URL</label>
-          <input type="url" id="inputGasUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec">
-        </div>
-
-        <div style="display: flex; gap: 8px; margin-top: 16px;">
-          <button class="btn btn-secondary" onclick="testGasConnection()" style="flex: 1;">
-            Uji Koneksi
-          </button>
-          <button class="btn btn-primary" onclick="saveGasUrl()" style="flex: 1;">
-            Simpan URL
-          </button>
-        </div>
-        <div id="settingsTestStatus" style="font-size: 11px; margin-top: 8px; text-align: center;"></div>
-      </div>
-
-      <div></div>
-    </div>
 
     <!-- ========================================================================= -->
     <!-- LOADING & PROGRESS OVERLAY                                                -->

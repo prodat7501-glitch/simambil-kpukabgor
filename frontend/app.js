@@ -1166,7 +1166,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
       setTimeout(() => {
         onUploadSuccess({
           status: 'success',
-          message: 'Simulasi: Dokumen berhasil di-render! (Harap atur URL Apps Script di menu pengaturan untuk upload riil ke Drive)',
+          message: 'Simulasi: Dokumen berhasil di-render secara lokal (koneksi ke Google Drive sedang offline)',
           fileName: fileName
         });
       }, 1500);
