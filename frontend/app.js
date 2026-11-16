@@ -250,34 +250,56 @@ function handleMasterDataSuccess(res) {
   // 1. Populasi Dropdown Kecamatan
   const selectKec = document.getElementById('selectKecamatan');
   const selectFilterKec = document.getElementById('filterRekapKecamatan');
+  const selectDesa = document.getElementById('selectDesa');
+  const selectTPS = document.getElementById('selectTPS');
   
   if (selectKec) {
     selectKec.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
   }
   if (selectFilterKec) {
-    selectFilterKec.innerHTML = '<option value="">-- Semua Kecamatan (19 Kecamatan) --</option>';
+    selectFilterKec.innerHTML = '<option value="">-- Semua Kecamatan --</option>';
   }
 
-  res.wilayah.forEach(item => {
+  const wilayah = res.wilayah || [];
+
+  if (wilayah.length === 0) {
     if (selectKec) {
       const opt = document.createElement('option');
-      opt.value = item.kecamatan;
-      opt.textContent = item.kecamatan;
+      opt.value = '';
+      opt.textContent = '-- Belum ada data wilayah di Spreadsheet --';
       selectKec.appendChild(opt);
     }
-
-    if (selectFilterKec) {
-      const optFilter = document.createElement('option');
-      optFilter.value = item.kecamatan;
-      optFilter.textContent = item.kecamatan;
-      selectFilterKec.appendChild(optFilter);
+    if (selectDesa) {
+      selectDesa.innerHTML = '<option value="">-- Belum ada data desa --</option>';
+      selectDesa.disabled = true;
     }
-  });
+    if (selectTPS) {
+      selectTPS.innerHTML = '<option value="">-- Belum ada data TPS --</option>';
+      selectTPS.disabled = true;
+    }
+    updateGeneratedFilename();
+  } else {
+    wilayah.forEach(item => {
+      if (selectKec) {
+        const opt = document.createElement('option');
+        opt.value = item.kecamatan;
+        opt.textContent = item.kecamatan;
+        selectKec.appendChild(opt);
+      }
 
-  // Set default pilihan pertama
-  if (selectKec && res.wilayah.length > 0) {
-    selectKec.value = res.wilayah[0].kecamatan;
-    onKecamatanChanged();
+      if (selectFilterKec) {
+        const optFilter = document.createElement('option');
+        optFilter.value = item.kecamatan;
+        optFilter.textContent = item.kecamatan;
+        selectFilterKec.appendChild(optFilter);
+      }
+    });
+
+    // Set default pilihan pertama jika ada
+    if (selectKec && wilayah.length > 0) {
+      selectKec.value = wilayah[0].kecamatan;
+      onKecamatanChanged();
+    }
   }
 
   // Muat data awal monitoring
@@ -1131,31 +1153,9 @@ function registerPWA() {
 }
 
 /**
- * Master Data Cadangan (Fallback) 19 Kecamatan Kab. Gorontalo
+ * Master Data Cadangan (Fallback) - Tanpa Data Dummy
  */
 function getLocalFallbackMasterData() {
-  const masterKecDesa = [
-    { kec: 'ASPARAGA', desa: ['BULULI', 'KARYA BARU', 'KARYA INDAH', 'MOHIYOLO', 'OLIMOHULO', 'PANGAHU', 'PRIMA', 'TIOHU'] },
-    { kec: 'BATUDAA', desa: ['BUNTULIA', 'DUNGGALA', 'HULAAWA', 'ILOHUNGAYO', 'ILUTA', 'PAYUNGA', 'PILOBUHUTA', 'YOSONEGORO'] },
-    { kec: 'BATUDAA PANTAI', desa: ['BILUHU TIMUR', 'BONGO', 'BUNGI', 'KAYUBULAN', 'LAMU', 'OLIMOO', 'TONTAYUO'] },
-    { kec: 'BILATO', desa: ['BILATO', 'BUMELA', 'ILOMATA', 'JURIKO', 'LAMAHU', 'PELEHU', 'TAULA A', 'TOTOPO'] },
-    { kec: 'BILUHU', desa: ['BILUHU BARAT', 'HUWONGO', 'LOBUTO', 'LULUO', 'MEMISO'] },
-    { kec: 'BOLIYOHUTO', desa: ['BANDUNGAN', 'BONGONGOAYU', 'DILONIYOHU', 'DULOHUPA', 'MOTILANGO', 'PARUNGI', 'POTANGA', 'SIDOMULYO'] },
-    { kec: 'BONGOMEME', desa: ['BATU LORENG', 'BATULAYAR', 'BONGOHULAWA', 'DULAMAYO', 'HUNTULOHULAWA', 'KAYUMERE', 'MOLAS', 'MOLOPATODU', 'OTOPADE', 'TOHUPO'] },
-    { kec: 'DUNGALIYO', desa: ['AMBARA', 'AYUHULA', 'BONGOMEME', 'BOTUBULOWE', 'DUNGALIYO', 'KALIYOSO', 'MOMUNU', 'PANGADAA', 'PILOLALENGA', 'SUKMA'] },
-    { kec: 'LIMBOTO', desa: ['BIYONGA', 'BOLIHUANGGA', 'BONGOHULAWA', 'DUTULANAA', 'HEPUHULAWA', 'HUIDUTUA', 'HUNGGALUWA', 'HUTUO', 'KAYUBULAN', 'MALAHU', 'POLOHUNGO', 'TENILO', 'TILIHUWA'] },
-    { kec: 'LIMBOTO BARAT', desa: ['DAENAA', 'HAYA HAYA', 'HUIDU', 'HUTABOHU', 'OMBULO', 'PADENGO', 'PONE', 'RATA', 'TUNGGULO', 'YOSONEGORO'] },
-    { kec: 'MOOTILANGO', desa: ['HELUMO', 'HUYULA', 'KARYAMUKTI', 'PARIS', 'PAYU', 'PILOMONU', 'SATRIA', 'SUKAMAJU', 'TALUMOPATU'] },
-    { kec: 'PULUBALA', desa: ['BAKTI', 'MULYONEGORO', 'PONGONGAILA', 'PULUBALA', 'PUNCAK', 'TOYIDITO', 'TRIDHARMA'] },
-    { kec: 'TABONGO', desa: ['ILOMANGGA', 'LIMEHE BARAT', 'LIMEHE TIMUR', 'MOAHUDU', 'MOTINELO', 'TABONGO BARAT', 'TABONGO TIMUR', 'TERATAI'] },
-    { kec: 'TELAGA', desa: ['DULAMAYO BARAT', 'DULAMAYO SELATAN', 'HULAWA', 'LUHU', 'MONGOLATO', 'PILOHAYANGA', 'PILOHAYANGA BARAT', 'TINELO'] },
-    { kec: 'TELAGA BIRU', desa: ['DULAMAYO BARAT', 'DULAMAYO UTARA', 'DUMATI', 'LUPOYO', 'MODELIDU', 'PANTUNGO', 'PENTADIO BARAT', 'PENTADIO TIMUR', 'TALUMELITO', 'TAPALULUO', 'TULADENGGI', 'ULAPATO A', 'ULAPATO B'] },
-    { kec: 'TELAGA JAYA', desa: ['BUHUDAA', 'BULOTA', 'BUNGGALO', 'LUWOO'] },
-    { kec: 'TIBAWA', desa: ['BALAHU', 'BOTUMOPUTI', 'BUHU', 'DATAHU', 'ISIMU BARAT', 'ISIMU SELATAN', 'ISIMU UTARA', 'LABANU', 'MOLOWAHU', 'MOTILANGO', 'REKSONEGORO', 'TOLOTIO', 'ULOBUA'] },
-    { kec: 'TILANGO', desa: ['DULOMO', 'ILOTIDEA', 'LAUWONU', 'TABUMELA', 'TENGGELA', 'TUALANGO'] },
-    { kec: 'TOLANGOHULA', desa: ['BINA JAYA', 'GANDARIA', 'LAKEYA', 'MAKMUR ABADI', 'MARGOMULYO', 'MOLOHU', 'OMBULO HIJAU', 'SUKAMAKMUR', 'TAMALIA', 'TAMAILA UTARA'] }
-  ];
-
   return {
     status: 'success',
     jenisDokumen: ['Model C-Plano', 'Model D-Plano'],
@@ -1168,61 +1168,19 @@ function getLocalFallbackMasterData() {
       { nama: 'Gubernur dan Wakil Gubernur', kode: 'PILGUB' },
       { nama: 'Bupati dan Wakil Bupati', kode: 'PILBUP' }
     ],
-    wilayah: masterKecDesa.map(item => ({
-      kecamatan: item.kec,
-      desaList: item.desa.map(d => ({
-        desa: d,
-        tpsList: ['001', '002', '003', '004']
-      }))
-    }))
+    wilayah: []
   };
 }
 
 function getLocalFallbackMonitoring(filterKec, filterDesa) {
-  const master = getLocalFallbackMasterData();
-  const records = [];
-  let countLengkap = 0;
-  let countBelum = 0;
-  let countKosong = 0;
-
-  const targetKec = filterKec ? filterKec.toUpperCase() : '';
-  const targetDesa = filterDesa ? filterDesa.toUpperCase() : '';
-
-  master.wilayah.forEach(itemKec => {
-    if (targetKec && itemKec.kecamatan !== targetKec) return;
-    itemKec.desaList.forEach(itemDesa => {
-      if (targetDesa && itemDesa.desa !== targetDesa) return;
-      itemDesa.tpsList.forEach(tps => {
-        records.push({
-          kecamatan: itemKec.kecamatan,
-          desa: itemDesa.desa,
-          tps: tps,
-          status: 'KOSONG',
-          totalUpload: 0,
-          targetTotal: 7,
-          rincian: {
-            'PPWP': false,
-            'DPR-RI': false,
-            'DPD-RI': false,
-            'DPRD-PROV': false,
-            'DPRD-KAB': false,
-            'PILGUB': false,
-            'PILBUP': false
-          }
-        });
-        countKosong++;
-      });
-    });
-  });
-
   return {
     status: 'success',
     summary: {
-      totalTPS: records.length,
-      lengkap: countLengkap,
-      belumLengkap: countBelum,
-      kosong: countKosong
+      totalTPS: 0,
+      lengkap: 0,
+      belumLengkap: 0,
+      kosong: 0
     },
-    records: records
+    records: []
   };
 }

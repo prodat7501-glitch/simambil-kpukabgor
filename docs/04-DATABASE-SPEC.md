@@ -3,12 +3,12 @@
 Aplikasi menggunakan Spreadsheet sebagai basis data master, rekap log upload (termasuk atribusi operator), dan view rekapitulasi progres.
 
 ### 1. Sheet: `Master_Wilayah`
-Menampung hirarki wilayah Kabupaten Gorontalo:
+Menampung hirarki wilayah Kabupaten Gorontalo (diisi langsung oleh Admin/Pengguna, tanpa data dummy otomatis):
 | Kolom | Nama Field | Tipe Data | Keterangan |
 |---|---|---|---|
 | A | ID_TPS | String | Unique Key (misal: TPS_ASPARAGA_KARYA-INDAH_001) |
-| B | NAMA_KEC | String | Nama dari 19 Kecamatan |
-| C | NAMA_DESA | String | Nama dari 205 Desa/Kelurahan |
+| B | NAMA_KEC | String | Nama Kecamatan |
+| C | NAMA_DESA | String | Nama Desa/Kelurahan |
 | D | NO_TPS | String | Format 3 digit (contoh: 001, 002, s/d 1205) |
 
 ### 2. Sheet: `Master_Kategori`
@@ -52,3 +52,9 @@ Menghitung status kelengkapan dokumen per TPS secara otomatis:
 | K | PILBUP | Cek status upload Bupati & Wagub |
 | L | TOTAL_UPLOAD | Jumlah jenis lembaga yang sudah diunggah |
 | M | STATUS_AKHIR | `IF(TOTAL=7, "LENGKAP", IF(TOTAL>0, "BELUM LENGKAP", "KOSONG"))` |
+
+### 5. Aturan Keamanan Data & Idempotensi Setup Database (Safe Migration Mode)
+- **Non-Destructive Initialization:** Fungsi `setupDatabase()` dilarang keras memanggil `.clear()` pada sheet yang telah memiliki data.
+- **Header Synchronization:** Jika sheet telah ada, fungsi hanya memeriksa dan melengkapi baris header (Baris 1) jika ada kolom baru yang belum tersedia (misal penambahan Kolom K, L, M pada `Log_Dokumen`).
+- **No Dummy Data Injection:** Dilarang menyisipkan data dummy otomatis (seperti sampel kecamatan/desa tiruan). Baris data $\ge 2$ pada `Master_Wilayah` sepenuhnya diisi dan dikelola mandiri oleh Pengguna/Admin KPU.
+- **Zero Data Loss:** Pengulangan eksekusi `setupDatabase()` tidak akan menghapus atau mengubah satu pun baris data yang telah diisi sebelumnya.

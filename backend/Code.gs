@@ -582,151 +582,111 @@ function setupDatabase() {
     throw new Error('Tidak ada Active Spreadsheet. Harap kaitkan project script ini dengan Google Spreadsheet.');
   }
 
-  // 1. Setup Master_Kategori
+  // 1. Setup Master_Kategori (Non-destructive: hanya isi kategori default jika sheet masih kosong)
   let sheetKategori = ss.getSheetByName(SHEETS.KATEGORI);
   if (!sheetKategori) {
     sheetKategori = ss.insertSheet(SHEETS.KATEGORI);
   }
-  sheetKategori.clear();
-  initSheetHeader(sheetKategori, ['JENIS_FILE', 'NAMA_LEMBAGA', 'KODE_LEMBAGA']);
+  ensureSheetHeaders(sheetKategori, ['JENIS_FILE', 'NAMA_LEMBAGA', 'KODE_LEMBAGA']);
   
-  const kategoriRows = [
-    ['Model C-Plano', 'Presiden dan Wakil Presiden', 'PPWP'],
-    ['Model C-Plano', 'DPR RI', 'DPR-RI'],
-    ['Model C-Plano', 'DPD RI', 'DPD-RI'],
-    ['Model C-Plano', 'DPRD Provinsi', 'DPRD-PROV'],
-    ['Model C-Plano', 'DPRD Kabupaten / Kota', 'DPRD-KAB'],
-    ['Model C-Plano', 'Gubernur dan Wakil Gubernur', 'PILGUB'],
-    ['Model C-Plano', 'Bupati dan Wakil Bupati', 'PILBUP'],
-    ['Model D-Plano', 'Presiden dan Wakil Presiden', 'PPWP'],
-    ['Model D-Plano', 'DPR RI', 'DPR-RI'],
-    ['Model D-Plano', 'DPD RI', 'DPD-RI'],
-    ['Model D-Plano', 'DPRD Provinsi', 'DPRD-PROV'],
-    ['Model D-Plano', 'DPRD Kabupaten / Kota', 'DPRD-KAB'],
-    ['Model D-Plano', 'Gubernur dan Wakil Gubernur', 'PILGUB'],
-    ['Model D-Plano', 'Bupati dan Wakil Bupati', 'PILBUP']
-  ];
-  sheetKategori.getRange(2, 1, kategoriRows.length, 3).setValues(kategoriRows);
+  // Hanya seed kategori default jika baris data masih kosong (< 2 baris)
+  if (sheetKategori.getLastRow() <= 1) {
+    const kategoriRows = [
+      ['Model C-Plano', 'Presiden dan Wakil Presiden', 'PPWP'],
+      ['Model C-Plano', 'DPR RI', 'DPR-RI'],
+      ['Model C-Plano', 'DPD RI', 'DPD-RI'],
+      ['Model C-Plano', 'DPRD Provinsi', 'DPRD-PROV'],
+      ['Model C-Plano', 'DPRD Kabupaten / Kota', 'DPRD-KAB'],
+      ['Model C-Plano', 'Gubernur dan Wakil Gubernur', 'PILGUB'],
+      ['Model C-Plano', 'Bupati dan Wakil Bupati', 'PILBUP'],
+      ['Model D-Plano', 'Presiden dan Wakil Presiden', 'PPWP'],
+      ['Model D-Plano', 'DPR RI', 'DPR-RI'],
+      ['Model D-Plano', 'DPD RI', 'DPD-RI'],
+      ['Model D-Plano', 'DPRD Provinsi', 'DPRD-PROV'],
+      ['Model D-Plano', 'DPRD Kabupaten / Kota', 'DPRD-KAB'],
+      ['Model D-Plano', 'Gubernur dan Wakil Gubernur', 'PILGUB'],
+      ['Model D-Plano', 'Bupati dan Wakil Bupati', 'PILBUP']
+    ];
+    sheetKategori.getRange(2, 1, kategoriRows.length, 3).setValues(kategoriRows);
+  }
 
-  // 2. Setup Master_Wilayah (19 Kecamatan Kabupaten Gorontalo)
+  // 2. Setup Master_Wilayah (Non-destructive: tidak ada data dummy, dikelola mandiri oleh admin KPU)
   let sheetWilayah = ss.getSheetByName(SHEETS.WILAYAH);
   if (!sheetWilayah) {
     sheetWilayah = ss.insertSheet(SHEETS.WILAYAH);
   }
-  sheetWilayah.clear();
-  initSheetHeader(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS']);
+  ensureSheetHeaders(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS']);
 
-  const wilayahRows = generateMasterWilayahRows();
-  if (wilayahRows.length > 0) {
-    const batchSize = 1000;
-    for (let i = 0; i < wilayahRows.length; i += batchSize) {
-      const slice = wilayahRows.slice(i, i + batchSize);
-      sheetWilayah.getRange(i + 2, 1, slice.length, 4).setValues(slice);
-    }
-  }
-
-  // 3. Setup Log_Dokumen
+  // 3. Setup Log_Dokumen (Pastikan kolom operator K, L, M terpasang tanpa menghapus riwayat log)
   let sheetLog = ss.getSheetByName(SHEETS.LOG);
   if (!sheetLog) {
     sheetLog = ss.insertSheet(SHEETS.LOG);
   }
-  if (sheetLog.getLastRow() === 0) {
-    initSheetHeader(sheetLog, [
-      'TIMESTAMP', 'FILE_NAME', 'JENIS_FILE', 'NAMA_LEMBAGA',
-      'KECAMATAN', 'DESA', 'TPS', 'JUMLAH_HALAMAN',
-      'DRIVE_FILE_ID', 'DRIVE_URL',
-      'NAMA_OPERATOR', 'NIP_OPERATOR', 'JABATAN_OPERATOR'
-    ]);
-  }
+  ensureSheetHeaders(sheetLog, [
+    'TIMESTAMP', 'FILE_NAME', 'JENIS_FILE', 'NAMA_LEMBAGA',
+    'KECAMATAN', 'DESA', 'TPS', 'JUMLAH_HALAMAN',
+    'DRIVE_FILE_ID', 'DRIVE_URL',
+    'NAMA_OPERATOR', 'NIP_OPERATOR', 'JABATAN_OPERATOR'
+  ]);
 
-  // 4. Setup Rekap_Progres
+  // 4. Setup Rekap_Progres (Non-destructive: hanya pastikan header tersedia)
   let sheetRekap = ss.getSheetByName(SHEETS.REKAP);
   if (!sheetRekap) {
     sheetRekap = ss.insertSheet(SHEETS.REKAP);
   }
-  sheetRekap.clear();
-  initSheetHeader(sheetRekap, [
+  ensureSheetHeaders(sheetRekap, [
     'ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS',
     'PPWP', 'DPR_RI', 'DPD_RI', 'DPRD_PROV', 'DPRD_KAB', 'PILGUB', 'PILBUP',
     'TOTAL_UPLOAD', 'STATUS_AKHIR'
   ]);
 
   SpreadsheetApp.flush();
-  Logger.log('Inisialisasi Database SIMAMBIL Berhasil! Total Wilayah: ' + wilayahRows.length);
-  return 'Setup Database Selesai. Total TPS terdaftar: ' + wilayahRows.length;
+  const existingTpsCount = Math.max(0, sheetWilayah.getLastRow() - 1);
+  Logger.log('Setup / Migrasi Database SIMAMBIL Berhasil! Data aman & tidak direset. Total TPS saat ini: ' + existingTpsCount);
+  return 'Setup / Migrasi Database SIMAMBIL selesai aman tanpa reset data. Total TPS terdaftar: ' + existingTpsCount;
 }
 
-function initSheetHeader(sheet, headers) {
-  const headerRange = sheet.getRange(1, 1, 1, headers.length);
-  headerRange.setValues([headers]);
-  headerRange.setBackground('#800000');
-  headerRange.setFontColor('#FFFFFF');
-  headerRange.setFontWeight('bold');
-  headerRange.setHorizontalAlignment('center');
+/**
+ * Memastikan header kolom ada di Baris 1 tanpa menghapus baris data yang sudah ada.
+ * Jika kolom target belum ada, tambahkan kolom baru di sebelah kanan kolom eksisting.
+ */
+function ensureSheetHeaders(sheet, targetHeaders) {
+  if (sheet.getLastColumn() === 0 || sheet.getLastRow() === 0) {
+    // Sheet masih kosong sama sekali
+    const range = sheet.getRange(1, 1, 1, targetHeaders.length);
+    range.setValues([targetHeaders]);
+    formatHeaderRow(range);
+    sheet.setFrozenRows(1);
+    return;
+  }
+
+  // Baca header yang sudah ada di baris 1
+  const existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const existingSet = new Set(existingHeaders.map(h => String(h || '').trim().toUpperCase()));
+
+  const missingHeaders = targetHeaders.filter(h => !existingSet.has(h.toUpperCase()));
+  if (missingHeaders.length > 0) {
+    const startCol = existingHeaders.length + 1;
+    const appendRange = sheet.getRange(1, startCol, 1, missingHeaders.length);
+    appendRange.setValues([missingHeaders]);
+    formatHeaderRow(appendRange);
+  }
+
   sheet.setFrozenRows(1);
 }
 
-function generateMasterWilayahRows() {
-  const masterKecDesa = [
-    { kec: 'ASPARAGA', desa: ['BULULI', 'KARYA BARU', 'KARYA INDAH', 'MOHIYOLO', 'OLIMOHULO', 'PANGAHU', 'PRIMA', 'TIOHU'] },
-    { kec: 'BATUDAA', desa: ['BUNTULIA', 'DUNGGALA', 'HULAAWA', 'ILOHUNGAYO', 'ILUTA', 'PAYUNGA', 'PILOBUHUTA', 'YOSONEGORO'] },
-    { kec: 'BATUDAA PANTAI', desa: ['BILUHU TIMUR', 'BONGO', 'BUNGI', 'KAYUBULAN', 'LAMU', 'OLIMOO', 'TONTAYUO'] },
-    { kec: 'BILATO', desa: ['BILATO', 'BUMELA', 'ILOMATA', 'JURIKO', 'LAMAHU', 'PELEHU', 'TAULA A', 'TOTOPO'] },
-    { kec: 'BILUHU', desa: ['BILUHU BARAT', 'HUWONGO', 'LOBUTO', 'LULUO', 'MEMISO'] },
-    { kec: 'BOLIYOHUTO', desa: ['BANDUNGAN', 'BONGONGOAYU', 'DILONIYOHU', 'DULOHUPA', 'MOTILANGO', 'PARUNGI', 'POTANGA', 'SIDOMULYO'] },
-    { kec: 'BONGOMEME', desa: ['BATU LORENG', 'BATULAYAR', 'BONGOHULAWA', 'DULAMAYO', 'HUNTULOHULAWA', 'KAYUMERE', 'MOLAS', 'MOLOPATODU', 'OTOPADE', 'TOHUPO'] },
-    { kec: 'DUNGALIYO', desa: ['AMBARA', 'AYUHULA', 'BONGOMEME', 'BOTUBULOWE', 'DUNGALIYO', 'KALIYOSO', 'MOMUNU', 'PANGADAA', 'PILOLALENGA', 'SUKMA'] },
-    { kec: 'LIMBOTO', desa: ['BIYONGA', 'BOLIHUANGGA', 'BONGOHULAWA', 'DUTULANAA', 'HEPUHULAWA', 'HUIDUTUA', 'HUNGGALUWA', 'HUTUO', 'KAYUBULAN', 'MALAHU', 'POLOHUNGO', 'TENILO', 'TILIHUWA'] },
-    { kec: 'LIMBOTO BARAT', desa: ['DAENAA', 'HAYA HAYA', 'HUIDU', 'HUTABOHU', 'OMBULO', 'PADENGO', 'PONE', 'RATA', 'TUNGGULO', 'YOSONEGORO'] },
-    { kec: 'MOOTILANGO', desa: ['HELUMO', 'HUYULA', 'KARYAMUKTI', 'PARIS', 'PAYU', 'PILOMONU', 'SATRIA', 'SUKAMAJU', 'TALUMOPATU'] },
-    { kec: 'PULUBALA', desa: ['BAKTI', 'MULYONEGORO', 'PONGONGAILA', 'PULUBALA', 'PUNCAK', 'TOYIDITO', 'TRIDHARMA'] },
-    { kec: 'TABONGO', desa: ['ILOMANGGA', 'LIMEHE BARAT', 'LIMEHE TIMUR', 'MOAHUDU', 'MOTINELO', 'TABONGO BARAT', 'TABONGO TIMUR', 'TERATAI'] },
-    { kec: 'TELAGA', desa: ['DULAMAYO BARAT', 'DULAMAYO SELATAN', 'HULAWA', 'LUHU', 'MONGOLATO', 'PILOHAYANGA', 'PILOHAYANGA BARAT', 'TINELO'] },
-    { kec: 'TELAGA BIRU', desa: ['DULAMAYO BARAT', 'DULAMAYO UTARA', 'DUMATI', 'LUPOYO', 'MODELIDU', 'PANTUNGO', 'PENTADIO BARAT', 'PENTADIO TIMUR', 'TALUMELITO', 'TAPALULUO', 'TULADENGGI', 'ULAPATO A', 'ULAPATO B'] },
-    { kec: 'TELAGA JAYA', desa: ['BUHUDAA', 'BULOTA', 'BUNGGALO', 'LUWOO'] },
-    { kec: 'TIBAWA', desa: ['BALAHU', 'BOTUMOPUTI', 'BUHU', 'DATAHU', 'ISIMU BARAT', 'ISIMU SELATAN', 'ISIMU UTARA', 'LABANU', 'MOLOWAHU', 'MOTILANGO', 'REKSONEGORO', 'TOLOTIO', 'ULOBUA'] },
-    { kec: 'TILANGO', desa: ['DULOMO', 'ILOTIDEA', 'LAUWONU', 'TABUMELA', 'TENGGELA', 'TUALANGO'] },
-    { kec: 'TOLANGOHULA', desa: ['BINA JAYA', 'GANDARIA', 'LAKEYA', 'MAKMUR ABADI', 'MARGOMULYO', 'MOLOHU', 'OMBULO HIJAU', 'SUKAMAKMUR', 'TAMALIA', 'TAMAILA UTARA'] }
-  ];
+function formatHeaderRow(range) {
+  range.setBackground('#800000');
+  range.setFontColor('#FFFFFF');
+  range.setFontWeight('bold');
+  range.setHorizontalAlignment('center');
+}
 
-  const rows = [];
-  masterKecDesa.forEach(item => {
-    item.desa.forEach(d => {
-      const tpsCount = 4;
-      for (let t = 1; t <= tpsCount; t++) {
-        const noTps = ('000' + t).slice(-3);
-        const idTps = 'TPS_' + item.kec + '_' + d.replace(/\s+/g, '-') + '_' + noTps;
-        rows.push([idTps, item.kec, d, noTps]);
-      }
-    });
-  });
-
-  return rows;
+function initSheetHeader(sheet, headers) {
+  ensureSheetHeaders(sheet, headers);
 }
 
 function getFallbackMasterData() {
-  const masterKecDesa = [
-    { kec: 'ASPARAGA', desa: ['BULULI', 'KARYA BARU', 'KARYA INDAH', 'MOHIYOLO', 'OLIMOHULO', 'PANGAHU', 'PRIMA', 'TIOHU'] },
-    { kec: 'BATUDAA', desa: ['BUNTULIA', 'DUNGGALA', 'HULAAWA', 'ILOHUNGAYO', 'ILUTA', 'PAYUNGA', 'PILOBUHUTA', 'YOSONEGORO'] },
-    { kec: 'BATUDAA PANTAI', desa: ['BILUHU TIMUR', 'BONGO', 'BUNGI', 'KAYUBULAN', 'LAMU', 'OLIMOO', 'TONTAYUO'] },
-    { kec: 'BILATO', desa: ['BILATO', 'BUMELA', 'ILOMATA', 'JURIKO', 'LAMAHU', 'PELEHU', 'TAULA A', 'TOTOPO'] },
-    { kec: 'BILUHU', desa: ['BILUHU BARAT', 'HUWONGO', 'LOBUTO', 'LULUO', 'MEMISO'] },
-    { kec: 'BOLIYOHUTO', desa: ['BANDUNGAN', 'BONGONGOAYU', 'DILONIYOHU', 'DULOHUPA', 'MOTILANGO', 'PARUNGI', 'POTANGA', 'SIDOMULYO'] },
-    { kec: 'BONGOMEME', desa: ['BATU LORENG', 'BATULAYAR', 'BONGOHULAWA', 'DULAMAYO', 'HUNTULOHULAWA', 'KAYUMERE', 'MOLAS', 'MOLOPATODU', 'OTOPADE', 'TOHUPO'] },
-    { kec: 'DUNGALIYO', desa: ['AMBARA', 'AYUHULA', 'BONGOMEME', 'BOTUBULOWE', 'DUNGALIYO', 'KALIYOSO', 'MOMUNU', 'PANGADAA', 'PILOLALENGA', 'SUKMA'] },
-    { kec: 'LIMBOTO', desa: ['BIYONGA', 'BOLIHUANGGA', 'BONGOHULAWA', 'DUTULANAA', 'HEPUHULAWA', 'HUIDUTUA', 'HUNGGALUWA', 'HUTUO', 'KAYUBULAN', 'MALAHU', 'POLOHUNGO', 'TENILO', 'TILIHUWA'] },
-    { kec: 'LIMBOTO BARAT', desa: ['DAENAA', 'HAYA HAYA', 'HUIDU', 'HUTABOHU', 'OMBULO', 'PADENGO', 'PONE', 'RATA', 'TUNGGULO', 'YOSONEGORO'] },
-    { kec: 'MOOTILANGO', desa: ['HELUMO', 'HUYULA', 'KARYAMUKTI', 'PARIS', 'PAYU', 'PILOMONU', 'SATRIA', 'SUKAMAJU', 'TALUMOPATU'] },
-    { kec: 'PULUBALA', desa: ['BAKTI', 'MULYONEGORO', 'PONGONGAILA', 'PULUBALA', 'PUNCAK', 'TOYIDITO', 'TRIDHARMA'] },
-    { kec: 'TABONGO', desa: ['ILOMANGGA', 'LIMEHE BARAT', 'LIMEHE TIMUR', 'MOAHUDU', 'MOTINELO', 'TABONGO BARAT', 'TABONGO TIMUR', 'TERATAI'] },
-    { kec: 'TELAGA', desa: ['DULAMAYO BARAT', 'DULAMAYO SELATAN', 'HULAWA', 'LUHU', 'MONGOLATO', 'PILOHAYANGA', 'PILOHAYANGA BARAT', 'TINELO'] },
-    { kec: 'TELAGA BIRU', desa: ['DULAMAYO BARAT', 'DULAMAYO UTARA', 'DUMATI', 'LUPOYO', 'MODELIDU', 'PANTUNGO', 'PENTADIO BARAT', 'PENTADIO TIMUR', 'TALUMELITO', 'TAPALULUO', 'TULADENGGI', 'ULAPATO A', 'ULAPATO B'] },
-    { kec: 'TELAGA JAYA', desa: ['BUHUDAA', 'BULOTA', 'BUNGGALO', 'LUWOO'] },
-    { kec: 'TIBAWA', desa: ['BALAHU', 'BOTUMOPUTI', 'BUHU', 'DATAHU', 'ISIMU BARAT', 'ISIMU SELATAN', 'ISIMU UTARA', 'LABANU', 'MOLOWAHU', 'MOTILANGO', 'REKSONEGORO', 'TOLOTIO', 'ULOBUA'] },
-    { kec: 'TILANGO', desa: ['DULOMO', 'ILOTIDEA', 'LAUWONU', 'TABUMELA', 'TENGGELA', 'TUALANGO'] },
-    { kec: 'TOLANGOHULA', desa: ['BINA JAYA', 'GANDARIA', 'LAKEYA', 'MAKMUR ABADI', 'MARGOMULYO', 'MOLOHU', 'OMBULO HIJAU', 'SUKAMAKMUR', 'TAMALIA', 'TAMAILA UTARA'] }
-  ];
-
   return {
     status: 'success',
     jenisDokumen: ['Model C-Plano', 'Model D-Plano'],
@@ -739,61 +699,19 @@ function getFallbackMasterData() {
       { nama: 'Gubernur dan Wakil Gubernur', kode: 'PILGUB' },
       { nama: 'Bupati dan Wakil Bupati', kode: 'PILBUP' }
     ],
-    wilayah: masterKecDesa.map(item => ({
-      kecamatan: item.kec,
-      desaList: item.desa.map(d => ({
-        desa: d,
-        tpsList: ['001', '002', '003', '004']
-      }))
-    }))
+    wilayah: []
   };
 }
 
 function getFallbackMonitoringSummary(filterKec, filterDesa) {
-  const master = getFallbackMasterData();
-  const records = [];
-  let countLengkap = 0;
-  let countBelum = 0;
-  let countKosong = 0;
-
-  const targetKec = filterKec ? filterKec.toUpperCase() : '';
-  const targetDesa = filterDesa ? filterDesa.toUpperCase() : '';
-
-  master.wilayah.forEach(itemKec => {
-    if (targetKec && itemKec.kecamatan !== targetKec) return;
-    itemKec.desaList.forEach(itemDesa => {
-      if (targetDesa && itemDesa.desa !== targetDesa) return;
-      itemDesa.tpsList.forEach(tps => {
-        records.push({
-          kecamatan: itemKec.kecamatan,
-          desa: itemDesa.desa,
-          tps: tps,
-          status: 'KOSONG',
-          totalUpload: 0,
-          targetTotal: 7,
-          rincian: {
-            'PPWP': false,
-            'DPR-RI': false,
-            'DPD-RI': false,
-            'DPRD-PROV': false,
-            'DPRD-KAB': false,
-            'PILGUB': false,
-            'PILBUP': false
-          }
-        });
-        countKosong++;
-      });
-    });
-  });
-
   return {
     status: 'success',
     summary: {
-      totalTPS: records.length,
-      lengkap: countLengkap,
-      belumLengkap: countBelum,
-      kosong: countKosong
+      totalTPS: 0,
+      lengkap: 0,
+      belumLengkap: 0,
+      kosong: 0
     },
-    records: records
+    records: []
   };
 }
