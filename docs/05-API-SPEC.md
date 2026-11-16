@@ -118,13 +118,13 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
         "PILBUP": false
       },
       "detailHalaman": {
-        "PPWP": { "actual": 3, "target": 3, "lengkap": true },
-        "DPR-RI": { "actual": 0, "target": 20, "lengkap": false },
-        "DPD-RI": { "actual": 3, "target": 3, "lengkap": true },
-        "DPRD-PROV": { "actual": 0, "target": 20, "lengkap": false },
-        "DPRD-KAB": { "actual": 0, "target": 20, "lengkap": false },
-        "PILGUB": { "actual": 0, "target": 3, "lengkap": false },
-        "PILBUP": { "actual": 0, "target": 3, "lengkap": false }
+        "PPWP": { "actual": 3, "target": 3, "lengkap": true, "kurang": 0, "persen": 100 },
+        "DPR-RI": { "actual": 17, "target": 20, "lengkap": false, "kurang": 3, "persen": 85 },
+        "DPD-RI": { "actual": 3, "target": 3, "lengkap": true, "kurang": 0, "persen": 100 },
+        "DPRD-PROV": { "actual": 0, "target": 20, "lengkap": false, "kurang": 20, "persen": 0 },
+        "DPRD-KAB": { "actual": 0, "target": 20, "lengkap": false, "kurang": 20, "persen": 0 },
+        "PILGUB": { "actual": 0, "target": 3, "lengkap": false, "kurang": 3, "persen": 0 },
+        "PILBUP": { "actual": 0, "target": 3, "lengkap": false, "kurang": 3, "persen": 0 }
       }
     }
   ]

@@ -28,6 +28,16 @@ const SHORT_LEMBAGA_NAMES = {
   'PILBUP': 'BUP'
 };
 
+const NAMA_LEMBAGA_FULL = {
+  'PPWP': '1. PPWP (Presiden & Wapres)',
+  'DPD-RI': '2. DPD RI',
+  'DPR-RI': '3. DPR RI',
+  'DPRD-PROV': '4. DPRD Provinsi',
+  'DPRD-KAB': '5. DPRD Kabupaten/Kota',
+  'PILGUB': '6. Gubernur & Wagub (PILGUB)',
+  'PILBUP': '7. Bupati & Wabup (PILBUP)'
+};
+
 let pagesState = []; // [{ page: 1, dataUrl: null, rotation: 0 }, ...]
 let activeSlotIndex = null;
 let currentFacingMode = 'environment';
@@ -339,14 +349,34 @@ async function testGasConnection() {
  * SOT: 05-API-SPEC.md (GET ?action=getMasterData)
  * ==============================================================================
  */
-function initPagesState() {
+function getTargetPagesForCurrentLembaga() {
+  const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  return TARGET_HALAMAN[selectedLembaga] || 3;
+}
+
+function initPagesState(numPages) {
+  const targetPages = numPages || getTargetPagesForCurrentLembaga();
   pagesState = [];
-  for (let i = 0; i < MAX_PAGES; i++) {
+  for (let i = 0; i < targetPages; i++) {
     pagesState.push({
       page: i + 1,
       dataUrl: null,
       rotation: 0
     });
+  }
+}
+
+function syncPagesStateWithLembaga() {
+  const targetPages = getTargetPagesForCurrentLembaga();
+  while (pagesState.length < targetPages) {
+    pagesState.push({
+      page: pagesState.length + 1,
+      dataUrl: null,
+      rotation: 0
+    });
+  }
+  if (pagesState.length > targetPages) {
+    pagesState = pagesState.slice(0, targetPages);
   }
 }
 
@@ -586,6 +616,7 @@ function formatTpsNum(tps) {
 
 function onLembagaSelectionChanged() {
   updateGeneratedFilename();
+  syncPagesStateWithLembaga();
   updateTargetPageUI();
   renderPageSlots();
   syncAllPickers();
@@ -621,7 +652,7 @@ function updateTargetPageUI() {
   }
 
   if (slotHint) {
-    slotHint.innerHTML = `Ketuk slot foto untuk memotret berkas. Standar lengkap untuk <strong>${selectedLembaga}</strong> adalah minimal <strong>${targetPages} Halaman</strong>.`;
+    slotHint.innerHTML = `Ketuk slot foto untuk memotret dokumen. Jumlah slot disesuaikan untuk <strong>${selectedLembaga}</strong>: <strong>${targetPages} Halaman</strong>.`;
   }
 }
 
@@ -632,6 +663,16 @@ function renderPageSlots() {
 
   const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
   const targetPages = TARGET_HALAMAN[selectedLembaga] || 3;
+
+  syncPagesStateWithLembaga();
+
+  // Terapkan layout 3 kolom untuk 3 halaman, atau 4 kolom untuk 20 halaman
+  if (targetPages === 3) {
+    container.classList.add('slots-3');
+  } else {
+    container.classList.remove('slots-3');
+  }
+
   let filledCount = 0;
 
   pagesState.forEach((slot, index) => {
@@ -650,14 +691,10 @@ function renderPageSlots() {
       `;
     } else {
       const padNum = ('00' + slot.page).slice(-2);
-      const isTargetSlot = slot.page <= targetPages;
-      const targetBadge = isTargetSlot 
-        ? `<span style="font-size: 8px; font-weight: 700; color: #991b1b; background: #fee2e2; padding: 1px 4px; border-radius: 3px; margin-top: 2px;">Wajib</span>` 
-        : '';
       card.innerHTML = `
         <span class="slot-number">${padNum}</span>
         <span class="slot-label">Hal ${slot.page}</span>
-        ${targetBadge}
+        <span class="slot-tag-wajib">Wajib</span>
       `;
     }
 
@@ -667,13 +704,13 @@ function renderPageSlots() {
   const badge = document.getElementById('pageCountBadge');
   if (badge) {
     if (filledCount >= targetPages) {
-      badge.textContent = `${filledCount} Terisi (Target ${targetPages} Hal ✓)`;
+      badge.textContent = `✓ ${filledCount}/${targetPages} Terisi (Lengkap)`;
       badge.style.backgroundColor = 'var(--status-green)';
     } else if (filledCount > 0) {
-      badge.textContent = `${filledCount} Terisi (Kurang ${targetPages - filledCount} Hal)`;
+      badge.textContent = `${filledCount}/${targetPages} Terisi (Kurang ${targetPages - filledCount} Hal)`;
       badge.style.backgroundColor = 'var(--status-yellow)';
     } else {
-      badge.textContent = `0 / ${MAX_PAGES} Terisi (Target ${targetPages} Hal)`;
+      badge.textContent = `0 / ${targetPages} Terisi`;
       badge.style.backgroundColor = 'var(--kpu-maroon)';
     }
   }
@@ -1001,7 +1038,26 @@ async function startRenderAndUpload() {
   }
 
   const fileName = updateGeneratedFilename();
+  const targetPages = TARGET_HALAMAN[lembaga] || 3;
 
+  // Jika jumlah halaman terisi kurang dari target, beri konfirmasi detil halaman kurang/hilang
+  if (filledSlots.length < targetPages) {
+    const kurang = targetPages - filledSlots.length;
+    showAppDialog({
+      title: 'Peringatan Halaman Belum Lengkap',
+      type: 'warning',
+      message: `Target kelengkapan dokumen <strong>${lembaga}</strong> adalah <strong>${targetPages} Halaman</strong>.<br><br>Saat ini baru ada <strong>${filledSlots.length} Halaman</strong> yang difoto (<strong>kurang ${kurang} halaman / hilang</strong>).<br><br>Dokumen akan dicatat berstatus <strong>BELUM LENGKAP</strong> pada monitoring. Apakah Anda ingin tetap menyimpannya sekarang?`,
+      confirmText: 'Tetap Simpan',
+      cancelText: 'Lengkapi Dulu',
+      onConfirm: () => proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan, desa, tps, fileName, op)
+    });
+    return;
+  }
+
+  proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan, desa, tps, fileName, op);
+}
+
+async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan, desa, tps, fileName, op) {
   try {
     showLoading('Menggabungkan Dokumen...', `Menyatukan ${filledSlots.length} halaman ke dalam PDF...`);
     updateProgress(25);
@@ -1299,7 +1355,6 @@ function renderRekapList() {
   filtered.slice(0, 100).forEach(rec => {
     const card = document.createElement('div');
     card.className = 'rekap-item-card';
-    card.onclick = () => selectTPSFromRekap(rec.kecamatan, rec.desa, rec.tps);
 
     let badgeClass = 'kosong';
     let statusIcon = '🔴';
@@ -1313,10 +1368,45 @@ function renderRekapList() {
 
     const totalLengkap = rec.totalLengkap !== undefined ? rec.totalLengkap : (rec.status === 'LENGKAP' ? 7 : (rec.totalUpload || 0));
 
-    // Siapkan mini-chips status per lembaga sesuai target halaman (SOT 06-BUSINESS-RULES.md)
+    // Analisis apakah ada dokumen yang halamannya hilang / kurang dari target
     const targetKeys = ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
-    let chipsHtml = '<div class="rekap-chips-row">';
+    const missingDocs = [];
 
+    targetKeys.forEach(k => {
+      const detail = rec.detailHalaman && rec.detailHalaman[k];
+      const targetHal = TARGET_HALAMAN[k] || 3;
+      if (detail && detail.actual > 0 && detail.actual < targetHal) {
+        missingDocs.push({
+          kode: k,
+          nama: SHORT_LEMBAGA_NAMES[k] || k,
+          fullName: NAMA_LEMBAGA_FULL[k] || k,
+          actual: detail.actual,
+          target: targetHal,
+          kurang: detail.kurang !== undefined ? detail.kurang : (targetHal - detail.actual)
+        });
+      }
+    });
+
+    // Alert Banner jika ada dokumen yang halamannya hilang / kurang
+    let alertBannerHtml = '';
+    if (missingDocs.length > 0) {
+      alertBannerHtml = `
+        <div class="rekap-missing-alert">
+          <div class="rekap-missing-title">
+            <span>⚠️ Terdeteksi Berkas Halaman Kurang / Hilang:</span>
+          </div>
+          ${missingDocs.map(m => `
+            <div class="rekap-missing-item">
+              <span class="rekap-missing-text">${escapeHtml(m.fullName)}</span>
+              <span class="rekap-missing-count">${m.actual}/${m.target} Hal (Kurang ${m.kurang} Hal)</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // Mini Chips 7 Lembaga
+    let chipsHtml = '<div class="rekap-chips-row">';
     targetKeys.forEach(k => {
       const short = SHORT_LEMBAGA_NAMES[k] || k;
       const targetHal = TARGET_HALAMAN[k] || 3;
@@ -1324,30 +1414,73 @@ function renderRekapList() {
 
       let isCompleted = false;
       let actualHal = 0;
+      let kurangHal = targetHal;
       if (detail) {
         actualHal = detail.actual || 0;
         isCompleted = detail.lengkap;
+        kurangHal = detail.kurang !== undefined ? detail.kurang : (targetHal - actualHal);
       } else if (rec.rincian) {
         isCompleted = !!rec.rincian[k];
         actualHal = isCompleted ? targetHal : 0;
+        kurangHal = isCompleted ? 0 : targetHal;
       }
 
       let chipClass = 'kosong';
       let icon = '';
+      let chipText = `${short}: ${actualHal}/${targetHal}`;
       if (isCompleted) {
         chipClass = 'lengkap';
         icon = '✓ ';
       } else if (actualHal > 0) {
-        chipClass = 'belum';
+        chipClass = 'kurang';
         icon = '⚠️ ';
+        chipText = `${short}: ${actualHal}/${targetHal} (-${kurangHal} Hal)`;
       }
 
-      chipsHtml += `<span class="rekap-chip ${chipClass}">${icon}${short}: ${actualHal}/${targetHal}</span>`;
+      chipsHtml += `<span class="rekap-chip ${chipClass}">${icon}${chipText}</span>`;
     });
     chipsHtml += '</div>';
 
+    // Rincian Breakdown Card (Expandable)
+    const cardId = `breakdown_${rec.kecamatan}_${rec.desa}_${rec.tps}`.replace(/[^a-zA-Z0-9_]/g, '_');
+    let breakdownRowsHtml = '';
+    targetKeys.forEach(k => {
+      const fullName = NAMA_LEMBAGA_FULL[k] || k;
+      const targetHal = TARGET_HALAMAN[k] || 3;
+      const detail = rec.detailHalaman && rec.detailHalaman[k];
+      const actualHal = detail ? detail.actual : (rec.rincian && rec.rincian[k] ? targetHal : 0);
+      const isCompleted = detail ? detail.lengkap : (rec.rincian && rec.rincian[k]);
+      const kurangHal = detail && detail.kurang !== undefined ? detail.kurang : (targetHal - actualHal);
+
+      let badgeHtml = '';
+      if (isCompleted) {
+        badgeHtml = `<span style="font-size: 10px; font-weight: 700; color: #15803d; background: #dcfce7; padding: 2px 6px; border-radius: 4px;">🟢 ${actualHal}/${targetHal} Hal (Lengkap)</span>`;
+      } else if (actualHal > 0) {
+        badgeHtml = `<span style="font-size: 10px; font-weight: 700; color: #be123c; background: #ffe4e6; padding: 2px 6px; border-radius: 4px;">⚠️ ${actualHal}/${targetHal} Hal (Kurang ${kurangHal} Hal)</span>`;
+      } else {
+        badgeHtml = `<span style="font-size: 10px; font-weight: 600; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">⚪ 0/${targetHal} Hal (Belum)</span>`;
+      }
+
+      const btnLabel = actualHal > 0 && !isCompleted ? 'Lengkapi 📸' : (isCompleted ? 'Ulang 📸' : 'Foto 📸');
+
+      breakdownRowsHtml += `
+        <div class="breakdown-row">
+          <div class="breakdown-row-left">
+            <span class="breakdown-name">${escapeHtml(fullName)}</span>
+            <span class="breakdown-sub">Target: ${targetHal} Halaman</span>
+          </div>
+          <div class="breakdown-row-right">
+            ${badgeHtml}
+            <button type="button" class="btn-upload-direct" onclick="event.stopPropagation(); selectTPSAndLembagaFromRekap('${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}', '${k}')">
+              ${btnLabel}
+            </button>
+          </div>
+        </div>
+      `;
+    });
+
     card.innerHTML = `
-      <div class="rekap-item-top">
+      <div class="rekap-item-top" onclick="selectTPSFromRekap('${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}')">
         <div class="rekap-item-left">
           <span class="rekap-tps-title">TPS ${rec.tps} - ${rec.desa}</span>
           <span class="rekap-tps-sub">Kec. ${rec.kecamatan} • Kelengkapan: <strong>${totalLengkap}/7 Lembaga</strong></span>
@@ -1356,11 +1489,57 @@ function renderRekapList() {
           <span class="status-badge ${badgeClass}" style="white-space: nowrap;">${statusIcon} ${rec.status}</span>
         </div>
       </div>
+      ${alertBannerHtml}
       ${chipsHtml}
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 4px; margin-top: 2px;">
+        <button type="button" class="rekap-toggle-btn" onclick="event.stopPropagation(); toggleRekapBreakdown('${cardId}', this)">
+          <span>📋 Rincian Halaman 7 Lembaga</span> <span class="arrow-icon">▾</span>
+        </button>
+        <span style="font-size: 10px; color: var(--text-muted); cursor: pointer;" onclick="selectTPSFromRekap('${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}')">Ketuk kartu untuk pilih TPS</span>
+      </div>
+      <div id="${cardId}" class="rekap-breakdown-card">
+        ${breakdownRowsHtml}
+      </div>
     `;
 
     container.appendChild(card);
   });
+}
+
+function selectTPSAndLembagaFromRekap(kec, desa, tps, kodeLembaga) {
+  selectTPSFromRekap(kec, desa, tps);
+  const selectLembaga = document.getElementById('selectLembaga');
+  if (selectLembaga && kodeLembaga) {
+    selectLembaga.value = kodeLembaga;
+    onLembagaSelectionChanged();
+  }
+  const slotsSec = document.getElementById('cardSlots');
+  if (slotsSec) {
+    slotsSec.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function toggleRekapBreakdown(cardId, btn) {
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  const isOpen = el.classList.contains('open');
+  if (isOpen) {
+    el.classList.remove('open');
+    if (btn) {
+      const arrow = btn.querySelector('.arrow-icon');
+      if (arrow) arrow.textContent = '▾';
+    }
+  } else {
+    el.classList.add('open');
+    if (btn) {
+      const arrow = btn.querySelector('.arrow-icon');
+      if (arrow) arrow.textContent = '▴';
+    }
+  }
+}
+
+function escapeJs(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
 function selectTPSFromRekap(kec, desa, tps) {

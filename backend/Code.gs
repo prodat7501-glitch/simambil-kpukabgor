@@ -385,11 +385,14 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
         const actualHal = tpsPages[kode] || 0;
         const isLengkap = actualHal >= targetHal;
 
+        const kurang = Math.max(0, targetHal - actualHal);
         rincian[kode] = isLengkap;
         detailHalaman[kode] = {
           actual: actualHal,
           target: targetHal,
-          lengkap: isLengkap
+          lengkap: isLengkap,
+          kurang: kurang,
+          persen: targetHal > 0 ? Math.min(100, Math.round((actualHal / targetHal) * 100)) : 0
         };
 
         if (isLengkap) totalLengkap++;

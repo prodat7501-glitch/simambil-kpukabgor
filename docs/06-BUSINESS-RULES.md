@@ -12,10 +12,14 @@
    - *Input:* Model C-Plano, DPD RI, Asparaga, Karya Indah, 1
    - *Output File:* `Model C-PLANO_DPD-RI_ASPARAGA_KARYA-INDAH_001.pdf`
 
-### 2. Aturan Halaman & Pengambilan Foto
-- Jumlah halaman per dokumen: Minimal 1 halaman, maksimal 20 halaman.
+### 2. Aturan Halaman & Pengambilan Foto (Dynamic Slot Allocation)
+- **Alokasi Slot Halaman Dinamis:** Jumlah slot foto pada antarmuka Kamera & Upload menyesuaikan secara otomatis dengan jenis pemilihan/lembaga yang dipilih:
+  - **3 Slot Foto:** Untuk PPWP, DPD RI, Gubernur & Wagub (PILGUB), dan Bupati & Wabup (PILBUP).
+  - **20 Slot Foto:** Untuk DPR RI, DPRD Provinsi, dan DPRD Kabupaten/Kota.
+  - Sistem dilarang menampilkan 20 slot untuk seluruh lembaga guna mencegah kebingungan operator dan menjaga kejelasan target fisik dokumen.
 - Halaman harus terurut secara sekuensial pada saat rendering (Halaman 1 menjadi page 1 di PDF, dst).
 - Slot halaman yang tidak diambil/kosong akan diabaikan (tidak disisipkan halaman kosong ke PDF).
+- **Validasi Unggah Belum Lengkap:** Jika operator mengunggah dokumen dengan jumlah halaman kurang dari target (misal DPR RI hanya 17 dari 20 halaman), sistem menampilkan konfirmasi khusus yang mencantumkan jumlah halaman yang belum lengkap/hilang sebelum berkas diproses.
 
 ### 3. Batasan Teknis & Kompresi (Payload Optimization)
 - Setiap foto yang diambil dari kamera beresolusi tinggi wajib dikompresi di sisi browser (client-side canvas) ke resolusi maksimal 1600x1200 dengan kualitas JPEG 0.7 - 0.8 sebelum dikonversi ke PDF.
@@ -32,10 +36,11 @@
    - **Gubernur dan Wakil Gubernur (PILGUB):** 3 Halaman
    - **Bupati dan Wakil Bupati (PILBUP):** 3 Halaman
 
-2. **Aturan Evaluasi Status TPS:**
+2. **Aturan Evaluasi Status TPS & Deteksi Halaman Hilang:**
    - **LENGKAP (🟢):** Ditetapkan jika dan hanya jika **seluruh 7 jenis pemilihan** telah diunggah dan **masing-masing telah memenuhi target halaman minimumnya**.
    - **BELUM LENGKAP (🟡):** Ditetapkan jika sudah ada minimal 1 berkas diunggah pada TPS tersebut, namun **belum semua 7 pemilihan memenuhi target halaman masing-masing** (misal ada berkas yang halamannya masih kurang atau belum diunggah).
    - **KOSONG / PENDING (🔴):** Ditetapkan jika belum ada satupun dokumen yang diunggah untuk TPS tersebut (`totalUpload = 0`).
+   - **Deteksi Halaman Hilang/Kurang:** Sistem menghitung selisih halaman secara presisi (`kurang = target - actual`). Jika berkas terunggah memiliki jumlah halaman di bawah target (misalnya DPR RI hanya 17 dari 20 halaman, artinya terdapat 3 halaman hilang/kurang), sistem menampilkan peringatan khusus (alert banner) dan indikator visual pada kartu TPS di menu Rekap & Monitoring agar segera ditindaklanjuti oleh koordinator/operator.
 
 ### 5. Aturan Folder Penyimpanan Google Drive
 - Seluruh dokumen PDF yang diunggah disimpan pada Root Folder Google Drive target:
