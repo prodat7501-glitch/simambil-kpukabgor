@@ -367,6 +367,11 @@
       <div class="camera-header">
         <span id="cameraSlotTitle" class="camera-title">Halaman 1</span>
         <div style="display: flex; gap: 8px;">
+          <button id="btnToggleFlash" class="camera-action-btn" onclick="toggleFlashTorch()" title="Nyalakan Flash / Blitz">
+            <svg id="flashIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+            </svg>
+          </button>
           <button class="camera-action-btn" onclick="toggleCameraFacing()" title="Ganti Kamera">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 10c0-4.418-3.582-8-8-8s-8 3.582-8 8c0 2.21 1.79 4 4 4h2"></path>
@@ -382,6 +387,7 @@
       <div class="camera-viewport">
         <video id="cameraVideo" autoplay playsinline muted></video>
         <div class="camera-guide-overlay"></div>
+        <div id="screenFlashOverlay" class="screen-flash-overlay"></div>
       </div>
 
       <div class="camera-footer">
@@ -397,7 +403,11 @@
           <div class="shutter-inner"></div>
         </div>
 
-        <div style="width: 44px;"></div>
+        <button id="btnToggleFlashFooter" class="camera-action-btn" onclick="toggleFlashTorch()" title="Nyalakan Flash / Blitz">
+          <svg id="flashIconFooter" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+          </svg>
+        </button>
       </div>
       
       <input type="file" id="fallbackFileInput" accept="image/*" capture="environment" style="display:none" onchange="handleFallbackFileSelected(event)">

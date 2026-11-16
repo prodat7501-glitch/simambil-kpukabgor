@@ -30,3 +30,7 @@
 - **Slot Foto & Bottom Action Bar:**
   - Slot foto 20 halaman memiliki status kosong dan terisi yang kontras, dengan preview thumbnail jelas dan centang status hijau.
   - Sticky action bar menggunakan efek glassmorphism (`backdrop-filter: blur(12px)`) dengan tombol simpan & render beraksen marun elegan.
+- **Fitur Blitz / Flash Kamera (Penerangan Kondisi Gelap):**
+  - Dilengkapi tombol Blitz / Flash (`⚡`) pada header dan footer jendela bidik kamera.
+  - Mengontrol lampu LED senter fisik perangkat (*Hardware Torch*) via WebRTC `applyConstraints({ advanced: [{ torch: true }] })`.
+  - Dilengkapi *fallback* penerang layar (*Screen Glow Light*) otomatis jika perangkat tidak mendukung senter hardware, memastikan dokumen C-Plano tetap dapat difoto dengan jelas meskipun TPS dalam kondisi gelap atau minim cahaya.

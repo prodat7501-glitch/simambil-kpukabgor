@@ -865,6 +865,9 @@ function closeCameraModal() {
   modal.classList.remove('active');
 }
 
+let isFlashOn = false;
+let isScreenFlashActive = false;
+
 function startCameraStream() {
   stopCameraStream();
   const video = document.getElementById('cameraVideo');
@@ -883,6 +886,9 @@ function startCameraStream() {
       cameraStream = stream;
       video.srcObject = stream;
       video.play();
+      isFlashOn = false;
+      isScreenFlashActive = false;
+      updateFlashUI(false);
     })
     .catch(err => {
       console.warn('getUserMedia gagal atau tidak didukung:', err);
@@ -892,12 +898,96 @@ function startCameraStream() {
 
 function stopCameraStream() {
   if (cameraStream) {
+    if (isFlashOn) {
+      const track = cameraStream.getVideoTracks()[0];
+      if (track && typeof track.applyConstraints === 'function') {
+        track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+      }
+    }
     cameraStream.getTracks().forEach(track => track.stop());
     cameraStream = null;
   }
+  isFlashOn = false;
+  isScreenFlashActive = false;
+  const overlay = document.getElementById('screenFlashOverlay');
+  if (overlay) overlay.classList.remove('active');
+  updateFlashUI(false);
+}
+
+async function toggleFlashTorch() {
+  if (!cameraStream) {
+    showAppToast('Kamera belum aktif.', 'warning');
+    return;
+  }
+
+  const track = cameraStream.getVideoTracks()[0];
+  if (!track) {
+    showAppToast('Kamera tidak terdeteksi.', 'warning');
+    return;
+  }
+
+  const capabilities = typeof track.getCapabilities === 'function' ? track.getCapabilities() : {};
+
+  // 1. Coba aktifkan Hardware Flash / Torch kamera fisik
+  if (capabilities && capabilities.torch) {
+    try {
+      isFlashOn = !isFlashOn;
+      await track.applyConstraints({
+        advanced: [{ torch: isFlashOn }]
+      });
+      updateFlashUI(isFlashOn);
+      showAppToast(isFlashOn ? '⚡ Lampu Flash / Blitz Menyala' : '⚡ Lampu Flash Dimatikan', 'info');
+      return;
+    } catch (err) {
+      console.warn('Gagal mengaktifkan hardware torch, mencoba mode layar terang:', err);
+    }
+  }
+
+  // 2. Fallback: Jika hardware torch tidak didukung browser/kamera, gunakan Penerang Layar (Screen Flash Glow)
+  toggleScreenFlashFallback();
+}
+
+function updateFlashUI(active) {
+  const btns = [document.getElementById('btnToggleFlash'), document.getElementById('btnToggleFlashFooter')];
+  const icons = [document.getElementById('flashIcon'), document.getElementById('flashIconFooter')];
+
+  btns.forEach(btn => {
+    if (!btn) return;
+    if (active) {
+      btn.classList.add('flash-active');
+      btn.setAttribute('title', 'Matikan Flash / Blitz');
+    } else {
+      btn.classList.remove('flash-active');
+      btn.setAttribute('title', 'Nyalakan Flash / Blitz');
+    }
+  });
+
+  icons.forEach(icon => {
+    if (!icon) return;
+    if (active) {
+      icon.innerHTML = '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="#713F12" stroke="#713F12"></path>';
+    } else {
+      icon.innerHTML = '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="none" stroke="currentColor"></path>';
+    }
+  });
+}
+
+function toggleScreenFlashFallback() {
+  isScreenFlashActive = !isScreenFlashActive;
+  const overlay = document.getElementById('screenFlashOverlay');
+  if (overlay) {
+    if (isScreenFlashActive) {
+      overlay.classList.add('active');
+    } else {
+      overlay.classList.remove('active');
+    }
+  }
+  updateFlashUI(isScreenFlashActive);
+  showAppToast(isScreenFlashActive ? '💡 Penerang Layar Aktif (Flash Alternatif)' : '💡 Penerang Layar Dimatikan', 'info');
 }
 
 function toggleCameraFacing() {
+  stopCameraStream();
   currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
   startCameraStream();
 }

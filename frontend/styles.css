@@ -822,6 +822,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.camera-action-btn.flash-active {
+  background: #FACC15 !important;
+  color: #713F12 !important;
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.75);
+  transform: scale(1.05);
+}
+
+.screen-flash-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: inset 0 0 120px rgba(255, 255, 255, 0.95);
+}
+
+.screen-flash-overlay.active {
+  display: block;
 }
 
 /* Preview & Edit Modal */
