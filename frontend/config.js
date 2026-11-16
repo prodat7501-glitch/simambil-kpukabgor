@@ -3,20 +3,28 @@
  * SOT: 05-API-SPEC.md
  */
 
-// Ganti URL default ini dengan Web App URL hasil Deploy Google Apps Script Anda:
-// Contoh: 'https://script.google.com/macros/s/AKfycbx.../exec'
-const DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzNK5akeBt11xDA1Y9pqgs8xqc8xwUIJYhDREBNCl8bl0gMbLacvwlAFjnHtZnW-6vvMg/exec';
+// URL Langsung ke Web App Google Apps Script
+const DIRECT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzNK5akeBt11xDA1Y9pqgs8xqc8xwUIJYhDREBNCl8bl0gMbLacvwlAFjnHtZnW-6vvMg/exec';
 
 const AppConfig = {
   /**
-   * Mengambil URL Endpoint aktif (prioritas dari localStorage pengguna, fallback ke DEFAULT_GAS_API_URL)
+   * Mengambil URL Endpoint aktif.
+   * - Prioritas 1: URL custom tersimpan di localStorage pengguna
+   * - Prioritas 2: Endpoint Proxy Serverless internal (/api/gas) jika berjalan di Vercel (Bebas CORS)
+   * - Prioritas 3: URL Direct Apps Script
    */
   getApiUrl: function () {
     const saved = localStorage.getItem('SIMAMBIL_API_URL');
-    if (saved && saved.trim().startsWith('https://script.google.com')) {
+    if (saved && saved.trim()) {
       return saved.trim();
     }
-    return DEFAULT_GAS_API_URL.trim();
+    
+    // Jika dibuka di domain Vercel, utamakan serverless proxy internal agar 100% bebas hambatan CORS
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+      return '/api/gas';
+    }
+
+    return DIRECT_GAS_URL;
   },
 
   /**
@@ -35,6 +43,6 @@ const AppConfig = {
    */
   isConfigured: function () {
     const url = this.getApiUrl();
-    return url && url.startsWith('https://script.google.com');
+    return !!(url && (url.startsWith('https://script.google.com') || url.startsWith('/api/')));
   }
 };

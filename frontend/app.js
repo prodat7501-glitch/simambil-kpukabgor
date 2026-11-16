@@ -129,6 +129,7 @@ function initPagesState() {
 async function loadMasterData() {
   const apiUrl = AppConfig.getApiUrl();
 
+  // 1. Coba endpoint utama (Proxy /api/gas jika di Vercel atau Direct URL)
   if (apiUrl) {
     try {
       const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}action=getMasterData`;
@@ -139,11 +140,26 @@ async function loadMasterData() {
         return;
       }
     } catch (e) {
-      console.warn('Gagal memuat master data dari GAS URL, menggunakan fallback lokal:', e);
+      console.warn('Gagal memuat master data dari endpoint utama:', e);
     }
   }
 
-  // Fallback lokal jika belum ada URL atau offline
+  // 2. Fallback ke Direct URL jika endpoint utama adalah proxy
+  if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
+    try {
+      const directEndpoint = `${DIRECT_GAS_URL}?action=getMasterData`;
+      const res = await fetch(directEndpoint, { redirect: 'follow' });
+      const json = await res.json();
+      if (json && json.status === 'success') {
+        handleMasterDataSuccess(json);
+        return;
+      }
+    } catch (e2) {
+      console.warn('Fallback direct GAS URL juga gagal:', e2);
+    }
+  }
+
+  // 3. Fallback lokal jika offline total
   const fallback = getLocalFallbackMasterData();
   handleMasterDataSuccess(fallback);
 }
@@ -698,17 +714,35 @@ async function startRenderAndUpload() {
     const apiUrl = AppConfig.getApiUrl();
 
     if (apiUrl) {
-      // Kirim sebagai text/plain untuk melewati CORS preflight OPTIONS Apps Script
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify(payload)
-      });
+      let resJson = null;
 
-      const resJson = await response.json();
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify(payload)
+        });
+        resJson = await response.json();
+      } catch (postErr) {
+        console.warn('Gagal upload ke endpoint utama, mencoba direct URL:', postErr);
+        if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
+          const response2 = await fetch(DIRECT_GAS_URL, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: {
+              'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(payload)
+          });
+          resJson = await response2.json();
+        } else {
+          throw postErr;
+        }
+      }
+
       onUploadSuccess(resJson);
 
     } else {
@@ -775,13 +809,15 @@ async function loadRekapData() {
   const filterDesa = document.getElementById('filterRekapDesa')?.value || '';
   const apiUrl = AppConfig.getApiUrl();
 
+  const qParams = new URLSearchParams({
+    action: 'getMonitoringSummary',
+    kecamatan: filterKec,
+    desa: filterDesa
+  });
+
+  // 1. Coba endpoint utama
   if (apiUrl) {
     try {
-      const qParams = new URLSearchParams({
-        action: 'getMonitoringSummary',
-        kecamatan: filterKec,
-        desa: filterDesa
-      });
       const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${qParams.toString()}`;
       const res = await fetch(endpoint, { redirect: 'follow' });
       const json = await res.json();
@@ -790,7 +826,22 @@ async function loadRekapData() {
         return;
       }
     } catch (e) {
-      console.warn('Gagal memuat rekapitulasi dari GAS URL, menggunakan fallback lokal:', e);
+      console.warn('Gagal memuat rekapitulasi dari endpoint utama:', e);
+    }
+  }
+
+  // 2. Fallback ke Direct URL jika endpoint utama adalah proxy
+  if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
+    try {
+      const directEndpoint = `${DIRECT_GAS_URL}?${qParams.toString()}`;
+      const res = await fetch(directEndpoint, { redirect: 'follow' });
+      const json = await res.json();
+      if (json && json.status === 'success') {
+        onRekapDataLoaded(json);
+        return;
+      }
+    } catch (e2) {
+      console.warn('Fallback direct GAS URL rekap juga gagal:', e2);
     }
   }
 
