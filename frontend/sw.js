@@ -2,7 +2,7 @@
  * Service Worker untuk SIMAMBIL PWA (Vercel Edition)
  * Caching shell UI & offline resilience
  */
-const CACHE_NAME = 'simambil-vercel-v24';
+const CACHE_NAME = 'simambil-vercel-v25';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

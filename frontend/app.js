@@ -50,11 +50,71 @@ let currentRekapViewMode = 'wilayah'; // 'wilayah' atau 'tps'
 let currentWilayahFilter = 'PENDING'; // 'PENDING', 'ALL', 'KOSONG', 'LENGKAP'
 const sessionUploadedDocsMap = new Map(); // Cache URL dokumen sesi aktif: "KEC|DESA|TPS|LEMBAGA" => { fileUrl, fileId, fileName }
 
+// Storage Keys untuk Stale-While-Revalidate (SWR) Instant Hydration
+const STORAGE_KEY_MASTER = 'SIMAMBIL_MASTER_DATA_CACHE_V2';
+const STORAGE_KEY_REKAP = 'SIMAMBIL_REKAP_SUMMARY_CACHE_V2';
+
+/**
+ * Helper Fetch dengan Timeout AbortController
+ * Menjamin koneksi seluler tidak menggantung tanpa batas waktu
+ */
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+/**
+ * Hidrasi Instan dari Cache Lokal (0 Milliseconds)
+ * Memastikan operator tidak pernah menunggu data wilayah atau rekapitulasi saat membuka kembali aplikasi
+ */
+function hydrateFromLocalCache() {
+  try {
+    const cachedMasterRaw = localStorage.getItem(STORAGE_KEY_MASTER);
+    if (cachedMasterRaw) {
+      const cachedMaster = JSON.parse(cachedMasterRaw);
+      if (cachedMaster && cachedMaster.status === 'success' && cachedMaster.wilayah && cachedMaster.wilayah.length > 0) {
+        console.log('⚡ [SIMAMBIL SWR] Master data wilayah dihidrasi instan dari cache lokal (0ms)');
+        handleMasterDataSuccess(cachedMaster, { fromCache: true });
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal membaca cache master data:', e);
+  }
+
+  try {
+    const cachedRekapRaw = localStorage.getItem(STORAGE_KEY_REKAP);
+    if (cachedRekapRaw) {
+      const cachedRekap = JSON.parse(cachedRekapRaw);
+      if (cachedRekap && cachedRekap.status === 'success' && cachedRekap.summary) {
+        console.log('⚡ [SIMAMBIL SWR] Rekapitulasi monitoring dihidrasi instan dari cache lokal (0ms)');
+        onRekapDataLoaded(cachedRekap, { fromCache: true });
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal membaca cache rekap monitoring:', e);
+  }
+}
+
 // Inisialisasi saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
   initPagesState();
   renderPageSlots();
+
+  // 1. Hidrasi instan dari cache lokal (0ms - Stale-While-Revalidate)
+  hydrateFromLocalCache();
+
+  // 2. Muat data mutakhir secara paralel di latar belakang tanpa saling memblokir
   loadMasterData();
+  loadRekapData();
+
   setupNetworkListeners();
   registerPWA();
   checkOperatorGate();
@@ -473,10 +533,13 @@ async function loadMasterData() {
   if (apiUrl) {
     try {
       const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}action=getMasterData${tokenQuery}`;
-      const res = await fetch(endpoint, { redirect: 'follow' });
+      const res = await fetchWithTimeout(endpoint, { redirect: 'follow' }, 12000);
       const json = await res.json();
       if (json && json.status === 'success') {
         handleMasterDataSuccess(json);
+        try {
+          localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(json));
+        } catch (errStorage) {}
         return;
       }
     } catch (e) {
@@ -488,10 +551,13 @@ async function loadMasterData() {
   if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
     try {
       const directEndpoint = `${DIRECT_GAS_URL}?action=getMasterData${tokenQuery}`;
-      const res = await fetch(directEndpoint, { redirect: 'follow' });
+      const res = await fetchWithTimeout(directEndpoint, { redirect: 'follow' }, 12000);
       const json = await res.json();
       if (json && json.status === 'success') {
         handleMasterDataSuccess(json);
+        try {
+          localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(json));
+        } catch (errStorage) {}
         return;
       }
     } catch (e2) {
@@ -499,9 +565,11 @@ async function loadMasterData() {
     }
   }
 
-  // 3. Fallback lokal jika offline total
-  const fallback = getLocalFallbackMasterData();
-  handleMasterDataSuccess(fallback);
+  // 3. Fallback lokal jika belum ada cache dan offline total
+  if (!masterDataCache) {
+    const fallback = getLocalFallbackMasterData();
+    handleMasterDataSuccess(fallback);
+  }
 }
 
 function handleMasterDataSuccess(res) {
@@ -513,12 +581,18 @@ function handleMasterDataSuccess(res) {
   const selectFilterKec = document.getElementById('filterRekapKecamatan');
   const selectDesa = document.getElementById('selectDesa');
   const selectTPS = document.getElementById('selectTPS');
+
+  // Pertahankan pilihan operator yang sedang aktif agar tidak ter-reset saat revalidasi latar belakang
+  const currentKec = selectKec ? selectKec.value : '';
+  const currentDesa = selectDesa ? selectDesa.value : '';
+  const currentTPS = selectTPS ? selectTPS.value : '';
+  const currentFilterKec = selectFilterKec ? selectFilterKec.value : '';
   
   if (selectKec) {
     selectKec.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
   }
   if (selectFilterKec) {
-    selectFilterKec.innerHTML = '<option value="">-- Semua Kecamatan --</option>';
+    selectFilterKec.innerHTML = '<option value="">-- Semua Kecamatan (19 Kecamatan) --</option>';
   }
 
   const wilayah = res.wilayah || [];
@@ -556,28 +630,39 @@ function handleMasterDataSuccess(res) {
       }
     });
 
-    // Kosongkan default pilihan wilayah (SOT User Request: biarkan operator sendiri yang memilih)
+    // Pulihkan pilihan aktif jika operator sudah memilih, atau pertahankan kosong jika belum memilih
     if (selectKec) {
-      selectKec.value = '';
+      if (currentKec && wilayah.some(w => w.kecamatan === currentKec)) {
+        selectKec.value = currentKec;
+        onKecamatanChanged(currentDesa, currentTPS);
+      } else {
+        selectKec.value = '';
+        if (selectDesa) {
+          selectDesa.innerHTML = '<option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>';
+          selectDesa.disabled = true;
+          selectDesa.value = '';
+        }
+        if (selectTPS) {
+          selectTPS.innerHTML = '<option value="">-- Pilih Desa Terlebih Dahulu --</option>';
+          selectTPS.disabled = true;
+          selectTPS.value = '';
+        }
+      }
     }
-    if (selectDesa) {
-      selectDesa.innerHTML = '<option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>';
-      selectDesa.disabled = true;
-      selectDesa.value = '';
+
+    if (selectFilterKec && currentFilterKec) {
+      selectFilterKec.value = currentFilterKec;
     }
-    if (selectTPS) {
-      selectTPS.innerHTML = '<option value="">-- Pilih Desa Terlebih Dahulu --</option>';
-      selectTPS.disabled = true;
-      selectTPS.value = '';
-    }
+
     updateGeneratedFilename();
   }
 
   syncAllPickers();
 
-  // Muat data awal monitoring
-  loadRekapData();
-  syncAllPickers();
+  // Jika ringkasan monitoring belum terisi, render initial wilayah langsung dari Master Data
+  if (allRekapRecords.length === 0 && (!rekapKecamatanList || rekapKecamatanList.length === 0)) {
+    renderRekapWilayah();
+  }
 }
 
 /**
@@ -1682,10 +1767,15 @@ function onRekapKecamatanChange() {
   syncAllPickers();
 }
 
-async function loadRekapData() {
+async function loadRekapData(isManualRefresh = false) {
   const filterKec = document.getElementById('filterRekapKecamatan')?.value || '';
   const filterDesa = document.getElementById('filterRekapDesa')?.value || '';
   const apiUrl = AppConfig.getApiUrl();
+  const isGlobalFilter = !filterKec && !filterDesa;
+
+  if (isManualRefresh) {
+    showAppToast('Menyinkronkan data monitoring terbaru...', 'info', 2000);
+  }
 
   const qParams = new URLSearchParams({
     action: 'getMonitoringSummary',
@@ -1703,13 +1793,21 @@ async function loadRekapData() {
   if (apiUrl) {
     try {
       const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${qParams.toString()}`;
-      const res = await fetch(endpoint, {
+      const res = await fetchWithTimeout(endpoint, {
         redirect: 'follow',
         cache: 'no-store'
-      });
+      }, 12000);
       const json = await res.json();
       if (json && json.status === 'success') {
         onRekapDataLoaded(json);
+        if (isGlobalFilter) {
+          try {
+            localStorage.setItem(STORAGE_KEY_REKAP, JSON.stringify(json));
+          } catch (eStorage) {}
+        }
+        if (isManualRefresh) {
+          showAppToast('Data monitoring berhasil diperbarui!', 'success', 2500);
+        }
         return;
       }
     } catch (e) {
@@ -1721,13 +1819,21 @@ async function loadRekapData() {
   if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
     try {
       const directEndpoint = `${DIRECT_GAS_URL}?${qParams.toString()}`;
-      const res = await fetch(directEndpoint, {
+      const res = await fetchWithTimeout(directEndpoint, {
         redirect: 'follow',
         cache: 'no-store'
-      });
+      }, 12000);
       const json = await res.json();
       if (json && json.status === 'success') {
         onRekapDataLoaded(json);
+        if (isGlobalFilter) {
+          try {
+            localStorage.setItem(STORAGE_KEY_REKAP, JSON.stringify(json));
+          } catch (eStorage) {}
+        }
+        if (isManualRefresh) {
+          showAppToast('Data monitoring berhasil diperbarui!', 'success', 2500);
+        }
         return;
       }
     } catch (e2) {
@@ -1735,8 +1841,15 @@ async function loadRekapData() {
     }
   }
 
-  const fallback = getLocalFallbackMonitoring(filterKec, filterDesa);
-  onRekapDataLoaded(fallback);
+  // 3. Fallback jika offline total dan belum ada data
+  if (allRekapRecords.length === 0 && (!rekapKecamatanList || rekapKecamatanList.length === 0)) {
+    const fallback = getLocalFallbackMonitoring(filterKec, filterDesa);
+    onRekapDataLoaded(fallback);
+  }
+
+  if (isManualRefresh) {
+    showAppToast('Koneksi lambat. Menampilkan data tersimpan di perangkat.', 'warning', 3000);
+  }
 }
 
 function onRekapDataLoaded(res) {
@@ -1747,10 +1860,12 @@ function onRekapDataLoaded(res) {
   const statBelum = document.getElementById('statBelumLengkap');
   const statKosong = document.getElementById('statKosong');
 
-  if (statTotal) statTotal.textContent = res.summary.totalTPS || 0;
-  if (statLengkap) statLengkap.textContent = res.summary.lengkap || 0;
-  if (statBelum) statBelum.textContent = res.summary.belumLengkap || 0;
-  if (statKosong) statKosong.textContent = res.summary.kosong || 0;
+  if (res.summary) {
+    if (statTotal) statTotal.textContent = res.summary.totalTPS !== undefined ? res.summary.totalTPS : 0;
+    if (statLengkap) statLengkap.textContent = res.summary.lengkap !== undefined ? res.summary.lengkap : 0;
+    if (statBelum) statBelum.textContent = res.summary.belumLengkap !== undefined ? res.summary.belumLengkap : 0;
+    if (statKosong) statKosong.textContent = res.summary.kosong !== undefined ? res.summary.kosong : 0;
+  }
 
   allRekapRecords = res.records || [];
   rekapKecamatanList = res.rekapKecamatan || [];
@@ -1883,9 +1998,43 @@ function getAggregatedRekapKecamatan() {
     });
   });
 
-  list.sort((a, b) => a.kecamatan.localeCompare(b.kecamatan));
-  rekapKecamatanList = list;
-  return list;
+  if (list.length > 0) {
+    list.sort((a, b) => a.kecamatan.localeCompare(b.kecamatan));
+    rekapKecamatanList = list;
+    return list;
+  }
+
+  // Fallback awal: Buat struktur ringkasan dari Master Data jika rekapitulasi belum diterima dari server
+  if (masterDataCache && masterDataCache.wilayah && masterDataCache.wilayah.length > 0) {
+    const list = masterDataCache.wilayah.map(k => {
+      const desaList = (k.desaList || []).map(d => {
+        const tpsList = d.tpsList || [];
+        return {
+          desa: d.desa,
+          totalTPS: tpsList.length,
+          lengkap: 0,
+          belumLengkap: 0,
+          kosong: tpsList.length,
+          tpsKosong: [...tpsList],
+          tpsBelumLengkap: []
+        };
+      });
+
+      const totalTPS = desaList.reduce((acc, d) => acc + d.totalTPS, 0);
+      return {
+        kecamatan: k.kecamatan,
+        totalTPS: totalTPS,
+        lengkap: 0,
+        belumLengkap: 0,
+        kosong: totalTPS,
+        persenLengkap: 0,
+        desaList: desaList
+      };
+    });
+    return list;
+  }
+
+  return [];
 }
 
 function onWilayahSearch() {
@@ -1933,9 +2082,15 @@ function renderRekapWilayah() {
   }
 
   if (filtered.length === 0) {
+    const isStillLoading = (!masterDataCache || !masterDataCache.wilayah || masterDataCache.wilayah.length === 0) &&
+                           (!rekapKecamatanList || rekapKecamatanList.length === 0);
     container.innerHTML = `
-      <div style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px;">
-        ${currentWilayahFilter === 'PENDING' ? '🎉 Seluruh wilayah telah tuntas diunggah!' : 'Tidak ada data kecamatan yang cocok dengan kriteria filter.'}
+      <div style="text-align: center; padding: 28px 16px; color: var(--text-muted);">
+        ${isStillLoading ? `
+          <div style="margin: 0 auto 10px auto; width: 26px; height: 26px; border: 3px solid #E2E8F0; border-top-color: var(--kpu-maroon); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+          <div style="font-weight: 600; font-size: 13px; color: #1E293B;">Memuat Ringkasan Wilayah...</div>
+          <div style="font-size: 11px; color: #64748B; margin-top: 4px;">Menghubungkan ke basis data rekapitulasi KPU</div>
+        ` : (currentWilayahFilter === 'PENDING' ? '🎉 Seluruh wilayah telah tuntas diunggah!' : 'Tidak ada data kecamatan yang cocok dengan kriteria filter.')}
       </div>
     `;
     return;

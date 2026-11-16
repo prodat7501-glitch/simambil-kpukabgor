@@ -263,7 +263,7 @@
         </div>
 
         <div style="display: flex; gap: 8px; margin-top: 10px;">
-          <button class="btn btn-primary" style="flex: 1; padding: 8px 12px; font-size: 12px;" onclick="loadRekapData()">
+          <button class="btn btn-primary" style="flex: 1; padding: 8px 12px; font-size: 12px;" onclick="loadRekapData(true)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10"></polyline>
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
@@ -319,8 +319,10 @@
           <input type="text" id="wilayahSearchInput" placeholder="Cari Kecamatan/Desa..." onkeyup="onWilayahSearch()" style="padding: 4px 8px; font-size: 11px; border: 1px solid var(--border-color); border-radius: 4px; width: 140px;">
         </div>
         <div id="rekapWilayahContainer" style="max-height: 520px; overflow-y: auto;">
-          <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;">
-            Memuat ringkasan wilayah...
+          <div style="text-align: center; padding: 28px 16px; color: var(--text-muted);">
+            <div style="margin: 0 auto 10px auto; width: 26px; height: 26px; border: 3px solid #E2E8F0; border-top-color: var(--kpu-maroon); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+            <div style="font-weight: 600; font-size: 13px; color: #1E293B;">Memuat Ringkasan Wilayah...</div>
+            <div style="font-size: 11px; color: #64748B; margin-top: 4px;">Menghubungkan ke basis data rekapitulasi KPU</div>
           </div>
         </div>
       </div>

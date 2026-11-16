@@ -89,3 +89,18 @@
      - Formulir slot foto di-reset bersih agar operator dapat langsung melanjutkan dokumentasi TPS berikutnya tanpa memilih ulang wilayah.
 3. **Reset Default Otomatis:**
    - Jika **seluruh nomor TPS pada Desa tersebut telah selesai dirender dan dikirim**, sistem secara otomatis me-reset pilihan Kecamatan, Desa, dan TPS kembali ke status default kosong (`-- Pilih Kecamatan --`), siap untuk memilih desa atau kecamatan baru.
+
+---
+
+### 6. ATURAN KINERJA PEMUATAN WILAYAH & CACHING (STALE-WHILE-REVALIDATE)
+1. **Instant Hydration (0 Milliseconds UX):**
+   - Aplikasi wajib membaca dan menghidrasi Master Data Wilayah (`SIMAMBIL_MASTER_DATA_CACHE_V2`) dan Rekapitulasi Monitoring (`SIMAMBIL_REKAP_SUMMARY_CACHE_V2`) langsung dari `localStorage` saat event `DOMContentLoaded` dipicu.
+   - Operator yang membuka kembali aplikasi atau login ulang tidak boleh menunggu pemuatan jaringan untuk melihat daftar 19 Kecamatan dan ringkasan rekapitulasi.
+2. **Parallel Background Revalidation:**
+   - Pemanggilan `getMasterData` dan `getMonitoringSummary` dijalankan secara paralel (asinkron bersamaan), tidak dalam bentuk serial waterfall.
+   - Setiap pemanggilan jaringan dilengkapi timeout 12 detik via `AbortController` guna mencegah UI menggantung saat koneksi seluler tidak stabil.
+3. **Preservation of Active Selection:**
+   - Pembaruan data latar belakang tidak boleh menghapus atau mereset pilihan wilayah yang sedang dipilih aktif oleh operator.
+4. **Backend Caching (Google Apps Script):**
+   - Endpoint `getMasterData` di-cache di `CacheService.getScriptCache()` hingga 6 jam untuk merespon dalam waktu `<50ms`.
+   - Endpoint `getMonitoringSummary` di-cache di `CacheService.getScriptCache()` selama 120 detik, dan secara otomatis di-evict (*cache invalidation*) setiap kali terjadi transaksi upload dokumen baru via `uploadCompiledDocument`.

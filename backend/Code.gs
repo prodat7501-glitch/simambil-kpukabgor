@@ -189,6 +189,17 @@ function getAppSpreadsheet() {
  */
 function getInitialMasterData() {
   try {
+    // 0. Cek CacheService Apps Script untuk respon super cepat (<50ms)
+    const cache = CacheService.getScriptCache();
+    const cachedData = cache.get('CACHE_MASTER_DATA_V1');
+    if (cachedData) {
+      try {
+        return JSON.parse(cachedData);
+      } catch (errJson) {
+        Logger.log('Cache parse failed: ' + errJson.message);
+      }
+    }
+
     const ss = getAppSpreadsheet();
     if (!ss) {
       return getFallbackMasterData();
@@ -253,12 +264,24 @@ function getInitialMasterData() {
       };
     });
 
-    return {
+    const result = {
       status: 'success',
       jenisDokumen: Array.from(jenisDokumenSet),
       lembaga: Array.from(lembagaMap.values()),
       wilayah: wilayahList
     };
+
+    // Simpan ke CacheService Apps Script selama 6 jam (21600 detik)
+    try {
+      const jsonStr = JSON.stringify(result);
+      if (jsonStr.length < 100000) {
+        cache.put('CACHE_MASTER_DATA_V1', jsonStr, 21600);
+      }
+    } catch (errCache) {
+      Logger.log('Cache put failed: ' + errCache.message);
+    }
+
+    return result;
 
   } catch (error) {
     Logger.log('Error getInitialMasterData: ' + error.message);
@@ -381,6 +404,13 @@ function uploadCompiledDocument(payload) {
       operatorJabatan: opJabatan
     });
 
+    // Invalidate cache monitoring di GAS agar rekapitulasi berikutnya langsung mutakhir
+    try {
+      CacheService.getScriptCache().remove('CACHE_MONITORING_SUMMARY_ALL');
+    } catch (eCache) {
+      Logger.log('Cache remove error: ' + eCache.message);
+    }
+
     return {
       status: 'success',
       message: 'Dokumen berhasil disimpan',
@@ -406,6 +436,21 @@ function uploadCompiledDocument(payload) {
  */
 function getMonitoringSummary(filterKecamatan, filterDesa) {
   try {
+    const isGlobal = !filterKecamatan && !filterDesa;
+    const cache = CacheService.getScriptCache();
+
+    // 0. Cek CacheService Apps Script untuk query ringkasan seluruh kabupaten
+    if (isGlobal) {
+      const cached = cache.get('CACHE_MONITORING_SUMMARY_ALL');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (errJson) {
+          Logger.log('Monitoring cache parse failed: ' + errJson.message);
+        }
+      }
+    }
+
     const ss = getAppSpreadsheet();
     if (!ss) {
       return getFallbackMonitoringSummary(filterKecamatan, filterDesa);
@@ -690,7 +735,7 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
 
     rekapKecamatan.sort((a, b) => a.kecamatan.localeCompare(b.kecamatan));
 
-    return {
+    const result = {
       status: 'success',
       summary: {
         totalTPS: records.length,
@@ -703,6 +748,20 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       rekapKecamatan: rekapKecamatan,
       records: records
     };
+
+    // Cache query global ke CacheService selama 120 detik (akan di-evict otomatis saat ada upload baru)
+    if (isGlobal) {
+      try {
+        const jsonStr = JSON.stringify(result);
+        if (jsonStr.length < 100000) {
+          cache.put('CACHE_MONITORING_SUMMARY_ALL', jsonStr, 120);
+        }
+      } catch (errCache) {
+        Logger.log('Monitoring cache put failed: ' + errCache.message);
+      }
+    }
+
+    return result;
 
   } catch (error) {
     Logger.log('Error getMonitoringSummary: ' + error.message);
