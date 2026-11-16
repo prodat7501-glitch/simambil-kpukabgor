@@ -362,6 +362,7 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
     // 3. Baca Master Wilayah dan hitung status per TPS
     const wilayahData = sheetWilayah.getDataRange().getValues();
     const records = [];
+    const processedKeys = new Set();
     let countLengkap = 0;
     let countBelumLengkap = 0;
     let countKosong = 0;
@@ -376,11 +377,13 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
 
       if (!kec || !desa || !tps) continue;
 
+      const key = kec + '|' + desa + '|' + tps;
+      processedKeys.add(key);
+
       // Filter wilayah jika parameter diberikan
       if (normFilterKec && kec !== normFilterKec) continue;
       if (normFilterDesa && desa !== normFilterDesa) continue;
 
-      const key = kec + '|' + desa + '|' + tps;
       const uploadedSet = uploadMap.get(key) || new Set();
 
       const rincian = {};
@@ -416,12 +419,62 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       });
     }
 
+    // 4. Tambahkan juga TPS dari Log jika ada berkas yang diunggah tetapi belum terdata di Master_Wilayah
+    uploadMap.forEach((uploadedSet, key) => {
+      if (processedKeys.has(key)) return;
+      const parts = key.split('|');
+      if (parts.length < 3) return;
+      const kec = parts[0];
+      const desa = parts[1];
+      const tps = parts[2];
+
+      if (normFilterKec && kec !== normFilterKec) return;
+      if (normFilterDesa && desa !== normFilterDesa) return;
+
+      const rincian = {};
+      let totalUpload = 0;
+      targetLembaga.forEach(kode => {
+        const isUploaded = uploadedSet.has(kode);
+        rincian[kode] = isUploaded;
+        if (isUploaded) totalUpload++;
+      });
+
+      let status = 'KOSONG';
+      if (totalUpload === targetLembaga.length) {
+        status = 'LENGKAP';
+        countLengkap++;
+      } else if (totalUpload > 0) {
+        status = 'BELUM LENGKAP';
+        countBelumLengkap++;
+      } else {
+        status = 'KOSONG';
+        countKosong++;
+      }
+
+      records.push({
+        kecamatan: kec,
+        desa: desa,
+        tps: tps,
+        status: status,
+        totalUpload: totalUpload,
+        targetTotal: targetLembaga.length,
+        rincian: rincian
+      });
+    });
+
+    // Urutkan records berdasarkan Kecamatan, Desa, dan Nomor TPS
+    records.sort((a, b) => {
+      if (a.kecamatan !== b.kecamatan) return a.kecamatan.localeCompare(b.kecamatan);
+      if (a.desa !== b.desa) return a.desa.localeCompare(b.desa);
+      return a.tps.localeCompare(b.tps);
+    });
+
     return {
       status: 'success',
       summary: {
         totalTPS: records.length,
         lengkap: countLengkap,
-        belumLengkap: countBelum,
+        belumLengkap: countBelumLengkap,
         kosong: countKosong
       },
       records: records
