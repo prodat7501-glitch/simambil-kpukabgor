@@ -1102,7 +1102,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
       doc.setFontSize(7.5);
       doc.setTextColor(90);
       const timestampStr = new Date().toLocaleString('id-ID');
-      const watermarkText = `SIMAMBIL KPU GORONTALO | ${kecamatan} - ${desa} - TPS ${formatTpsNum(tps)} | Operator: ${op.nama} (${op.nip}) | Hal ${i + 1}/${filledSlots.length} | ${timestampStr}`;
+      const watermarkText = `SIMAMBIL KPU Kab. Gorontalo | ${kecamatan} - ${desa} - TPS ${formatTpsNum(tps)} | Operator: ${op.nama} (${op.nip}) | Hal ${i + 1}/${filledSlots.length} | ${timestampStr}`;
       doc.text(watermarkText, margin, pageHeight - 5);
 
       updateProgress(25 + Math.round(((i + 1) / filledSlots.length) * 45));

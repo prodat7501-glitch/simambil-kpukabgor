@@ -70,5 +70,5 @@
 - Data identitas disimpan pada memori lokal browser (`localStorage`) sehingga operator hanya perlu mengisinya satu kali.
 - Data identitas operator disertakan pada setiap transaksi unggahan:
   - Disematkan pada stempel **Watermark PDF**:
-    `SIMAMBIL KPU GORONTALO | [KECAMATAN] - [DESA] - TPS [TPS] | Operator: [NAMA] ([NIP]) | Hal X/Y | [TIMESTAMP]`
+    `SIMAMBIL KPU Kab. Gorontalo | [KECAMATAN] - [DESA] - TPS [TPS] | Operator: [NAMA] ([NIP]) | Hal X/Y | [TIMESTAMP]`
   - Dicatat ke basis data **Log_Dokumen** (Kolom K, L, M) sebagai rekam jejak audit yang akuntabel.
