@@ -907,8 +907,37 @@ function openCameraModal(index) {
 
   activeSlotIndex = index;
   const modal = document.getElementById('cameraModal');
+  const metaEl = document.getElementById('cameraDocMeta');
   const title = document.getElementById('cameraSlotTitle');
-  if (title) title.textContent = `Halaman ${index + 1}`;
+
+  const jenis = document.getElementById('selectJenisFile')?.value || 'Model C-Plano';
+  const lembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  const targetPages = TARGET_HALAMAN[lembaga] || 3;
+
+  const cleanJenis = sanitizeStr(jenis);
+  const cleanLembaga = sanitizeStr(lembaga);
+  const cleanKec = sanitizeStr(kec);
+  const cleanDesa = sanitizeStr(desa);
+  const cleanTps = formatTpsNum(tps);
+
+  const docMetaStr = `${cleanJenis}_${cleanLembaga}_${cleanKec}_${cleanDesa}_${cleanTps}`;
+
+  if (metaEl) {
+    metaEl.textContent = docMetaStr;
+    // Skala dinamis agar pas dalam 1 baris di layar smartphone
+    if (docMetaStr.length > 34) {
+      metaEl.style.fontSize = '8.5px';
+    } else if (docMetaStr.length > 26) {
+      metaEl.style.fontSize = '9.5px';
+    } else {
+      metaEl.style.fontSize = '10.5px';
+    }
+  }
+
+  if (title) {
+    title.textContent = `Halaman ${index + 1} / ${targetPages}`;
+  }
+
   modal.classList.add('active');
 
   startCameraStream();
