@@ -5,7 +5,7 @@
 
 // Ganti URL default ini dengan Web App URL hasil Deploy Google Apps Script Anda:
 // Contoh: 'https://script.google.com/macros/s/AKfycbx.../exec'
-const DEFAULT_GAS_API_URL = '';
+const DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzNK5akeBt11xDA1Y9pqgs8xqc8xwUIJYhDREBNCl8bl0gMbLacvwlAFjnHtZnW-6vvMg/exec';
 
 const AppConfig = {
   /**
