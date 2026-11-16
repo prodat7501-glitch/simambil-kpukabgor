@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNetworkListeners();
   registerPWA();
   checkOperatorGate();
+  syncAllPickers();
 });
 
 /**
@@ -195,6 +196,7 @@ function openOperatorModal(canClose = true) {
     closeBtn.style.display = (canClose && current && current.nama && validJabatan) ? 'flex' : 'none';
   }
 
+  syncAllPickers();
   if (modal) modal.classList.add('active');
 }
 
@@ -423,8 +425,11 @@ function handleMasterDataSuccess(res) {
     }
   }
 
+  syncAllPickers();
+
   // Muat data awal monitoring
   loadRekapData();
+  syncAllPickers();
 }
 
 /**
@@ -444,6 +449,7 @@ function onKecamatanChanged() {
   if (!selectedKec || !masterDataCache) {
     selectDesa.disabled = true;
     updateGeneratedFilename();
+    syncAllPickers();
     return;
   }
 
@@ -467,6 +473,7 @@ function onKecamatanChanged() {
   }
 
   updateGeneratedFilename();
+  syncAllPickers();
 }
 
 function onDesaChanged() {
@@ -480,6 +487,7 @@ function onDesaChanged() {
   if (!selectedKec || !selectedDesa || !masterDataCache) {
     selectTPS.disabled = true;
     updateGeneratedFilename();
+    syncAllPickers();
     return;
   }
 
@@ -505,6 +513,7 @@ function onDesaChanged() {
   }
 
   updateGeneratedFilename();
+  syncAllPickers();
 }
 
 /**
@@ -1086,6 +1095,7 @@ function onRekapKecamatanChange() {
   }
 
   loadRekapData();
+  syncAllPickers();
 }
 
 async function loadRekapData() {
@@ -1255,6 +1265,7 @@ function selectTPSFromRekap(kec, desa, tps) {
     updateGeneratedFilename();
   }
 
+  syncAllPickers();
   window.scrollTo({ top: 180, behavior: 'smooth' });
 }
 
@@ -1354,4 +1365,171 @@ function getLocalFallbackMonitoring(filterKec, filterDesa) {
     },
     records: []
   };
+}
+
+/**
+ * ==============================================================================
+ * 9. CUSTOM MOBILE BOTTOM SHEET PICKER (MODERN ANDROID UX)
+ * Replaces ugly dark Android OS system radio picker with a sleek bottom sheet
+ * ==============================================================================
+ */
+let currentPickerSelectId = null;
+
+const PICKER_FIELD_MAP = [
+  { selectId: 'selectJenisFile', labelId: 'labelJenisFile', triggerId: 'triggerJenisFile' },
+  { selectId: 'selectLembaga', labelId: 'labelLembaga', triggerId: 'triggerLembaga' },
+  { selectId: 'selectKecamatan', labelId: 'labelKecamatan', triggerId: 'triggerKecamatan' },
+  { selectId: 'selectDesa', labelId: 'labelDesa', triggerId: 'triggerDesa' },
+  { selectId: 'selectTPS', labelId: 'labelTPS', triggerId: 'triggerTPS' },
+  { selectId: 'filterRekapKecamatan', labelId: 'labelFilterRekapKecamatan', triggerId: 'triggerFilterRekapKecamatan' },
+  { selectId: 'filterRekapDesa', labelId: 'labelFilterRekapDesa', triggerId: 'triggerFilterRekapDesa' },
+  { selectId: 'selectOpJabatan', labelId: 'labelOpJabatan', triggerId: 'triggerOpJabatan' }
+];
+
+function syncAllPickers() {
+  PICKER_FIELD_MAP.forEach(({ selectId, labelId, triggerId }) => {
+    const sel = document.getElementById(selectId);
+    const lbl = document.getElementById(labelId);
+    const trig = document.getElementById(triggerId);
+    if (!sel || !lbl) return;
+
+    const opt = sel.options && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+    const txt = opt ? opt.textContent : (sel.getAttribute('placeholder') || '-- Pilih --');
+    lbl.textContent = txt;
+
+    if (trig) {
+      if (sel.disabled) {
+        trig.classList.add('disabled');
+        trig.setAttribute('aria-disabled', 'true');
+      } else {
+        trig.classList.remove('disabled');
+        trig.removeAttribute('aria-disabled');
+      }
+    }
+  });
+}
+
+function triggerPicker(selectId, title, icon = '📍', hasSearch = true) {
+  const sel = document.getElementById(selectId);
+  if (!sel || sel.disabled) {
+    if (selectId === 'selectDesa') {
+      showAppToast('Harap pilih Kecamatan terlebih dahulu.', 'warning');
+    } else if (selectId === 'selectTPS') {
+      showAppToast('Harap pilih Desa terlebih dahulu.', 'warning');
+    }
+    return;
+  }
+
+  currentPickerSelectId = selectId;
+  const modal = document.getElementById('bottomSheetPickerModal');
+  const titleEl = document.getElementById('pickerHeaderTitle');
+  const iconEl = document.getElementById('pickerHeaderIcon');
+  const searchWrapper = document.getElementById('pickerSearchWrapper');
+  const searchInput = document.getElementById('pickerSearchInput');
+
+  if (titleEl) titleEl.textContent = title;
+  if (iconEl) iconEl.textContent = icon;
+
+  if (searchWrapper) {
+    searchWrapper.style.display = hasSearch ? 'block' : 'none';
+  }
+  if (searchInput) {
+    searchInput.value = '';
+    const clearBtn = document.getElementById('pickerSearchClearBtn');
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+
+  renderPickerOptions('');
+  if (modal) modal.classList.add('active');
+
+  if (hasSearch && searchInput) {
+    setTimeout(() => searchInput.focus(), 250);
+  }
+}
+
+function renderPickerOptions(searchKeyword = '') {
+  const listEl = document.getElementById('pickerOptionsList');
+  if (!listEl || !currentPickerSelectId) return;
+
+  const sel = document.getElementById(currentPickerSelectId);
+  if (!sel) return;
+
+  const currentVal = sel.value;
+  const options = Array.from(sel.options);
+  const keyword = (searchKeyword || '').trim().toLowerCase();
+
+  listEl.innerHTML = '';
+
+  let count = 0;
+  options.forEach(opt => {
+    // Lewatkan opsi placeholder kosong jika ada opsi riil dan pengguna sedang tidak mencari
+    if (!opt.value && options.length > 1 && keyword === '' && (currentPickerSelectId.startsWith('select') || currentPickerSelectId.startsWith('filter'))) {
+      // Izinkan placeholder untuk filter monitoring (misal "Semua Kecamatan")
+      if (!currentPickerSelectId.startsWith('filter')) {
+        return;
+      }
+    }
+
+    const text = opt.textContent;
+    if (keyword && !text.toLowerCase().includes(keyword)) {
+      return;
+    }
+
+    count++;
+    const isSelected = opt.value === currentVal;
+    const item = document.createElement('div');
+    item.className = 'picker-option-item' + (isSelected ? ' selected' : '');
+    item.onclick = () => selectPickerOption(currentPickerSelectId, opt.value);
+
+    item.innerHTML = `
+      <span class="picker-option-label">${escapeHtml(text)}</span>
+      ${isSelected ? '<div class="picker-check-badge">✓</div>' : ''}
+    `;
+
+    listEl.appendChild(item);
+  });
+
+  if (count === 0) {
+    listEl.innerHTML = `
+      <div class="picker-empty-state">
+        Tidak ada opsi yang cocok dengan "${escapeHtml(keyword)}".
+      </div>
+    `;
+  }
+}
+
+function onPickerSearchInput(query) {
+  const clearBtn = document.getElementById('pickerSearchClearBtn');
+  if (clearBtn) {
+    clearBtn.style.display = query ? 'block' : 'none';
+  }
+  renderPickerOptions(query);
+}
+
+function clearPickerSearch() {
+  const input = document.getElementById('pickerSearchInput');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  const clearBtn = document.getElementById('pickerSearchClearBtn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  renderPickerOptions('');
+}
+
+function selectPickerOption(selectId, value) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+
+  sel.value = value;
+  sel.dispatchEvent(new Event('change'));
+  syncAllPickers();
+  closeBottomSheetPicker();
+}
+
+function closeBottomSheetPicker(event) {
+  if (event && event.target !== event.currentTarget) return;
+  const modal = document.getElementById('bottomSheetPickerModal');
+  if (modal) modal.classList.remove('active');
+  currentPickerSelectId = null;
 }

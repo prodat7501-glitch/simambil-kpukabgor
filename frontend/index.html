@@ -92,16 +92,30 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="selectJenisFile">Jenis Berkas Dokumen</label>
-          <select id="selectJenisFile" class="form-select" onchange="updateGeneratedFilename()">
+          <label class="form-label">Jenis Berkas Dokumen</label>
+          <div class="custom-picker-field" id="triggerJenisFile" onclick="triggerPicker('selectJenisFile', 'Jenis Berkas Dokumen', '📄', false)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">📄</span>
+              <span class="picker-field-text" id="labelJenisFile">Model C-Plano</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="selectJenisFile" class="visually-hidden-select" onchange="updateGeneratedFilename(); syncAllPickers();">
             <option value="Model C-Plano">Model C-Plano</option>
             <option value="Model D-Plano">Model D-Plano</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="selectLembaga">Jenis Pemilihan / Lembaga</label>
-          <select id="selectLembaga" class="form-select" onchange="updateGeneratedFilename()">
+          <label class="form-label">Jenis Pemilihan / Lembaga</label>
+          <div class="custom-picker-field" id="triggerLembaga" onclick="triggerPicker('selectLembaga', 'Jenis Pemilihan / Lembaga', '🏛️', false)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">🏛️</span>
+              <span class="picker-field-text" id="labelLembaga">Presiden dan Wakil Presiden (PPWP)</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="selectLembaga" class="visually-hidden-select" onchange="updateGeneratedFilename(); syncAllPickers();">
             <option value="PPWP">Presiden dan Wakil Presiden (PPWP)</option>
             <option value="DPR-RI">DPR RI (DPR-RI)</option>
             <option value="DPD-RI">DPD RI (DPD-RI)</option>
@@ -113,22 +127,43 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="selectKecamatan">Kecamatan</label>
-          <select id="selectKecamatan" class="form-select" onchange="onKecamatanChanged()">
+          <label class="form-label">Kecamatan</label>
+          <div class="custom-picker-field" id="triggerKecamatan" onclick="triggerPicker('selectKecamatan', 'Pilih Kecamatan', '📍', true)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">📍</span>
+              <span class="picker-field-text" id="labelKecamatan">-- Pilih Kecamatan --</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="selectKecamatan" class="visually-hidden-select" onchange="onKecamatanChanged(); syncAllPickers();">
             <option value="">-- Pilih Kecamatan --</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="selectDesa">Desa / Kelurahan</label>
-          <select id="selectDesa" class="form-select" onchange="onDesaChanged()" disabled>
+          <label class="form-label">Desa / Kelurahan</label>
+          <div class="custom-picker-field disabled" id="triggerDesa" onclick="triggerPicker('selectDesa', 'Pilih Desa / Kelurahan', '🏢', true)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">🏢</span>
+              <span class="picker-field-text" id="labelDesa">-- Pilih Kecamatan Terlebih Dahulu --</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="selectDesa" class="visually-hidden-select" onchange="onDesaChanged(); syncAllPickers();" disabled>
             <option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="selectTPS">Nomor TPS</label>
-          <select id="selectTPS" class="form-select" onchange="updateGeneratedFilename()" disabled>
+          <label class="form-label">Nomor TPS</label>
+          <div class="custom-picker-field disabled" id="triggerTPS" onclick="triggerPicker('selectTPS', 'Pilih Nomor TPS', '🗳️', true)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">🗳️</span>
+              <span class="picker-field-text" id="labelTPS">-- Pilih Desa Terlebih Dahulu --</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="selectTPS" class="visually-hidden-select" onchange="updateGeneratedFilename(); syncAllPickers();" disabled>
             <option value="">-- Pilih Desa Terlebih Dahulu --</option>
           </select>
         </div>
@@ -199,15 +234,29 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="filterRekapKecamatan">Kecamatan</label>
-          <select id="filterRekapKecamatan" class="form-select" onchange="onRekapKecamatanChange()">
+          <label class="form-label">Kecamatan</label>
+          <div class="custom-picker-field" id="triggerFilterRekapKecamatan" onclick="triggerPicker('filterRekapKecamatan', 'Filter Kecamatan', '📍', true)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">📍</span>
+              <span class="picker-field-text" id="labelFilterRekapKecamatan">-- Semua Kecamatan --</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="filterRekapKecamatan" class="visually-hidden-select" onchange="onRekapKecamatanChange(); syncAllPickers();">
             <option value="">-- Semua Kecamatan (19 Kecamatan) --</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="filterRekapDesa">Desa / Kelurahan</label>
-          <select id="filterRekapDesa" class="form-select" onchange="loadRekapData()">
+          <label class="form-label">Desa / Kelurahan</label>
+          <div class="custom-picker-field" id="triggerFilterRekapDesa" onclick="triggerPicker('filterRekapDesa', 'Filter Desa / Kelurahan', '🏢', true)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">🏢</span>
+              <span class="picker-field-text" id="labelFilterRekapDesa">-- Semua Desa --</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="filterRekapDesa" class="visually-hidden-select" onchange="loadRekapData(); syncAllPickers();">
             <option value="">-- Semua Desa --</option>
           </select>
         </div>
@@ -398,8 +447,15 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="selectOpJabatan">Jabatan *</label>
-            <select id="selectOpJabatan" class="form-select" required>
+            <label class="form-label">Jabatan *</label>
+            <div class="custom-picker-field" id="triggerOpJabatan" onclick="triggerPicker('selectOpJabatan', 'Pilih Jabatan Operator', '👤', false)" role="button" tabindex="0">
+              <div class="picker-field-left">
+                <span class="picker-field-icon">👤</span>
+                <span class="picker-field-text" id="labelOpJabatan">-- Pilih Jabatan --</span>
+              </div>
+              <span class="picker-field-chevron">▾</span>
+            </div>
+            <select id="selectOpJabatan" class="visually-hidden-select" onchange="syncAllPickers();" required>
               <option value="">-- Pilih Jabatan --</option>
               <option value="Sekretariat">Sekretariat</option>
               <option value="Komisioner">Komisioner</option>
@@ -484,6 +540,39 @@
     <div id="appToast" class="app-toast">
       <span id="appToastIcon">ℹ️</span>
       <span id="appToastText">Notifikasi</span>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- CUSTOM MOBILE BOTTOM SHEET PICKER (NO MORE NATIVE ANDROID RADIO DIALOG)   -->
+    <!-- ========================================================================= -->
+    <div id="bottomSheetPickerModal" class="picker-modal-backdrop" onclick="closeBottomSheetPicker(event)">
+      <div class="bottom-sheet-container" onclick="event.stopPropagation()">
+        <div class="bottom-sheet-handle-bar">
+          <div class="bottom-sheet-drag-handle"></div>
+        </div>
+        <div class="bottom-sheet-header">
+          <div class="bottom-sheet-title-wrapper">
+            <span class="bottom-sheet-icon" id="pickerHeaderIcon">📍</span>
+            <h3 class="bottom-sheet-title" id="pickerHeaderTitle">Pilih Opsi</h3>
+          </div>
+          <button class="bottom-sheet-close-btn" onclick="closeBottomSheetPicker()">&times;</button>
+        </div>
+
+        <div class="bottom-sheet-search-wrapper" id="pickerSearchWrapper">
+          <div class="search-input-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="pickerSearchInput" class="picker-search-field" placeholder="Ketik untuk mencari..." oninput="onPickerSearchInput(this.value)">
+            <button id="pickerSearchClearBtn" class="picker-clear-search" onclick="clearPickerSearch()" style="display: none;">&times;</button>
+          </div>
+        </div>
+
+        <div class="bottom-sheet-list" id="pickerOptionsList">
+          <!-- Dynamic Options Rendered Here -->
+        </div>
+      </div>
     </div>
 
   </div>
