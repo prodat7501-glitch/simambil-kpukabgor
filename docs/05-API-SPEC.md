@@ -44,9 +44,9 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
 ---
 
 ### 2. Endpoint: `POST ?action=uploadDocument` (atau POST ke Base URL)
-- **Fungsi:** Menerima berkas gabungan (PDF Base64) dari frontend Vercel, menyimpan ke Google Drive terstruktur, dan mencatat log upload ke sheet `Log_Dokumen`.
+- **Fungsi:** Menerima berkas gabungan (PDF Base64) dari frontend Vercel, menyimpan ke Google Drive terstruktur, dan mencatat log upload ke sheet `Log_Dokumen` beserta data atribusi operator.
 - **Method:** `POST`
-- **Content-Type:** `text/plain;charset=utf-8` (Disarankan untuk menghindari blokir CORS Preflight OPTIONS pada Google Apps Script) atau `application/json`.
+- **Content-Type:** `text/plain;charset=utf-8` atau `application/json`
 - **Request Body Payload (JSON String):**
 ```json
 {
@@ -60,7 +60,12 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
     "kecamatan": "ASPARAGA",
     "desa": "KARYA INDAH",
     "tps": "001",
-    "totalHalaman": 12
+    "totalHalaman": 12,
+    "operator": {
+      "nama": "Ahmad Fauzi",
+      "nip": "198801012022031002",
+      "jabatan": "Operator TPS"
+    }
   }
 }
 ```
@@ -115,10 +120,3 @@ https://script.google.com/macros/s/[SCRIPT_ID]/exec
   ]
 }
 ```
-
----
-
-### Catatan Penanganan CORS & Redirect Google Apps Script:
-1. Google Apps Script Web App selalu merespons dengan HTTP status 302 Redirect ke domain `script.googleusercontent.com`.
-2. Frontend `fetch()` di Vercel harus menyertakan opsi `{ redirect: 'follow' }`.
-3. Untuk menghindari CORS preflight OPTIONS rejection pada Apps Script, payload POST dikirimkan sebagai text string dengan `Content-Type: text/plain;charset=utf-8` dan di-parse via `JSON.parse(e.postData.contents)` di `doPost(e)`.

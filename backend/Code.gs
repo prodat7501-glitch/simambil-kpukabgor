@@ -239,6 +239,11 @@ function uploadCompiledDocument(payload) {
     const tps = formatTPS(meta.tps || '001');
     const totalHalaman = Number(meta.totalHalaman || 1);
 
+    const op = meta.operator || {};
+    const opNama = String(op.nama || '').trim();
+    const opNip = String(op.nip || '').trim();
+    const opJabatan = String(op.jabatan || '').trim();
+
     // 1. Standarisasi Nama File sesuai SOT 06-BUSINESS-RULES.md
     // [JENIS_FILE]_[KODE_LEMBAGA]_[KECAMATAN]_[DESA]_[TPS].pdf
     const standardizedFileName = formatStandardFileName(jenisFile, lembaga, kecamatan, desa, tps);
@@ -285,7 +290,10 @@ function uploadCompiledDocument(payload) {
       tps: tps,
       totalHalaman: totalHalaman,
       fileId: fileId,
-      fileUrl: fileUrl
+      fileUrl: fileUrl,
+      operatorNama: opNama,
+      operatorNip: opNip,
+      operatorJabatan: opJabatan
     });
 
     return {
@@ -445,8 +453,16 @@ function logUploadedDocument(item) {
       initSheetHeader(sheet, [
         'TIMESTAMP', 'FILE_NAME', 'JENIS_FILE', 'NAMA_LEMBAGA',
         'KECAMATAN', 'DESA', 'TPS', 'JUMLAH_HALAMAN',
-        'DRIVE_FILE_ID', 'DRIVE_URL'
+        'DRIVE_FILE_ID', 'DRIVE_URL',
+        'NAMA_OPERATOR', 'NIP_OPERATOR', 'JABATAN_OPERATOR'
       ]);
+    } else {
+      // Pastikan header lengkap jika sheet sudah ada sebelumnya
+      const lastCol = sheet.getLastColumn();
+      if (lastCol <= 10) {
+        sheet.getRange(1, 11, 1, 3).setValues([['NAMA_OPERATOR', 'NIP_OPERATOR', 'JABATAN_OPERATOR']]);
+        sheet.getRange(1, 11, 1, 3).setBackground('#800000').setFontColor('#FFFFFF').setFontWeight('bold').setHorizontalAlignment('center');
+      }
     }
 
     sheet.appendRow([
@@ -459,7 +475,10 @@ function logUploadedDocument(item) {
       item.tps,
       item.totalHalaman,
       item.fileId,
-      item.fileUrl
+      item.fileUrl,
+      item.operatorNama || '-',
+      item.operatorNip || '-',
+      item.operatorJabatan || '-'
     ]);
   } catch (err) {
     Logger.log('Error logUploadedDocument: ' + err.message);
@@ -615,7 +634,8 @@ function setupDatabase() {
     initSheetHeader(sheetLog, [
       'TIMESTAMP', 'FILE_NAME', 'JENIS_FILE', 'NAMA_LEMBAGA',
       'KECAMATAN', 'DESA', 'TPS', 'JUMLAH_HALAMAN',
-      'DRIVE_FILE_ID', 'DRIVE_URL'
+      'DRIVE_FILE_ID', 'DRIVE_URL',
+      'NAMA_OPERATOR', 'NIP_OPERATOR', 'JABATAN_OPERATOR'
     ]);
   }
 

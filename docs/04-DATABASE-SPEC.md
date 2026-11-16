@@ -1,6 +1,6 @@
 # Database Specification (Google Sheets)
 
-Aplikasi menggunakan Spreadsheet sebagai basis data master, rekap log upload, dan view rekapitulasi progres.
+Aplikasi menggunakan Spreadsheet sebagai basis data master, rekap log upload (termasuk atribusi operator), dan view rekapitulasi progres.
 
 ### 1. Sheet: `Master_Wilayah`
 Menampung hirarki wilayah Kabupaten Gorontalo:
@@ -18,19 +18,22 @@ Menampung referensi berkas dan lembaga:
 - Kolom C: `KODE_LEMBAGA` (PPWP, DPR-RI, DPD-RI, DPRD-PROV, DPRD-KAB, PILGUB, PILBUP)
 
 ### 3. Sheet: `Log_Dokumen`
-Mencatat riwayat upload berkas yang berhasil masuk:
+Mencatat riwayat upload berkas yang berhasil masuk beserta identitas operator yang melakukan pengunggahan:
 | Kolom | Nama Field | Keterangan |
 |---|---|---|
-| A | TIMESTAMP | Tanggal dan jam upload |
+| A | TIMESTAMP | Tanggal dan jam upload (WITA) |
 | B | FILE_NAME | Nama file hasil standarisasi |
 | C | JENIS_FILE | C-Plano / D-Plano |
 | D | NAMA_LEMBAGA | Lembaga terpilih |
-| E | KECAMATAN | Kecamatan |
-| F | DESA | Desa |
-| G | TPS | Nomor TPS |
+| E | KECAMATAN | Kecamatan terpilih |
+| F | DESA | Desa terpilih |
+| G | TPS | Nomor TPS terpilih |
 | H | JUMLAH_HALAMAN | Total halaman yang digabung |
 | I | DRIVE_FILE_ID | ID Berkas di Google Drive |
 | J | DRIVE_URL | Link akses berkas di Drive |
+| K | NAMA_OPERATOR | Nama lengkap operator pengunggah |
+| L | NIP_OPERATOR | NIP / Nomor identitas operator |
+| M | JABATAN_OPERATOR | Jabatan operator (Operator TPS, KPPS, dll) |
 
 ### 4. Sheet / View: `Rekap_Progres`
 Menghitung status kelengkapan dokumen per TPS secara otomatis:
@@ -40,12 +43,12 @@ Menghitung status kelengkapan dokumen per TPS secara otomatis:
 | B | NAMA_KEC | Nama Kecamatan |
 | C | NAMA_DESA | Nama Desa |
 | D | NO_TPS | Nomor TPS |
-| E | PPWP | `IF(COUNTIFS(Log!C:C,"Model C-Plano", Log!D:D,"Presiden dan Wakil Presiden", Log!G:G, D2)>0, "V", "-")` |
-| F | DPR_RI | Cek status DPR RI |
-| G | DPD_RI | Cek status DPD RI |
-| H | DPRD_PROV | Cek status DPRD Provinsi |
-| I | DPRD_KAB | Cek status DPRD Kab/Kota |
-| J | PILGUB | Cek status Gubernur & Wagub |
-| K | PILBUP | Cek status Bupati & Wabup |
+| E | PPWP | Cek status upload PPWP |
+| F | DPR_RI | Cek status upload DPR RI |
+| G | DPD_RI | Cek status upload DPD RI |
+| H | DPRD_PROV | Cek status upload DPRD Provinsi |
+| I | DPRD_KAB | Cek status upload DPRD Kab/Kota |
+| J | PILGUB | Cek status upload Gubernur & Wagub |
+| K | PILBUP | Cek status upload Bupati & Wagub |
 | L | TOTAL_UPLOAD | Jumlah jenis lembaga yang sudah diunggah |
 | M | STATUS_AKHIR | `IF(TOTAL=7, "LENGKAP", IF(TOTAL>0, "BELUM LENGKAP", "KOSONG"))` |

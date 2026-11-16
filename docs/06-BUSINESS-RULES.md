@@ -32,3 +32,14 @@
   - **URL:** `https://drive.google.com/drive/folders/1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`
 - Di dalam folder root tersebut, sistem secara otomatis membentuk subfolder berjenjang jika belum tersedia:
   `[Folder Target: 1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI] / [Kecamatan] / [Desa] / TPS [TPS] / [File.pdf]`
+
+### 6. Aturan Identitas & Akuntabilitas Operator
+- Sebelum dapat menggunakan aplikasi, operator wajib menginputkan data diri:
+  1. **Nama Lengkap**
+  2. **NIP** (Nomor Induk Pegawai, atau nomor identitas resmi / tanda pengenal)
+  3. **Jabatan** (misal: Operator TPS, Anggota KPPS, Panitia Pemilihan Kecamatan, dll.)
+- Data identitas disimpan pada memori lokal browser (`localStorage`) sehingga operator hanya perlu mengisinya satu kali.
+- Data identitas operator disertakan pada setiap transaksi unggahan:
+  - Disematkan pada stempel **Watermark PDF**:
+    `SIMAMBIL KPU GORONTALO | [KECAMATAN] - [DESA] - TPS [TPS] | Operator: [NAMA] ([NIP]) | Hal X/Y | [TIMESTAMP]`
+  - Dicatat ke basis data **Log_Dokumen** (Kolom K, L, M) sebagai rekam jejak audit yang akuntabel.

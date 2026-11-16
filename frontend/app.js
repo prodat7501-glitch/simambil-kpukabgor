@@ -22,11 +22,99 @@ document.addEventListener('DOMContentLoaded', () => {
   loadMasterData();
   setupNetworkListeners();
   registerPWA();
+  checkOperatorGate();
 });
 
 /**
  * ==============================================================================
- * 1. CONFIGURATION & BANNER NOTICE
+ * 1. IDENTITAS & PROFIL OPERATOR (SOT: 06-BUSINESS-RULES.md)
+ * ==============================================================================
+ */
+function getOperatorProfile() {
+  try {
+    const raw = localStorage.getItem('SIMAMBIL_OPERATOR');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveOperatorProfile(data) {
+  localStorage.setItem('SIMAMBIL_OPERATOR', JSON.stringify(data));
+  updateOperatorHeaderUI();
+}
+
+function updateOperatorHeaderUI() {
+  const op = getOperatorProfile();
+  const nameEl = document.getElementById('headerOpNameShort');
+  if (nameEl) {
+    if (op && op.nama) {
+      nameEl.textContent = op.nama.split(' ')[0];
+    } else {
+      nameEl.textContent = 'Isi Identitas';
+    }
+  }
+}
+
+function checkOperatorGate() {
+  const op = getOperatorProfile();
+  updateOperatorHeaderUI();
+  if (!op || !op.nama || !op.nip || !op.jabatan) {
+    openOperatorModal(false);
+  }
+}
+
+function openOperatorModal(canClose = true) {
+  const modal = document.getElementById('operatorModal');
+  const closeBtn = document.getElementById('closeOpModalBtn');
+  const inputNama = document.getElementById('inputOpNama');
+  const inputNip = document.getElementById('inputOpNip');
+  const selectJabatan = document.getElementById('selectOpJabatan');
+
+  const current = getOperatorProfile();
+  if (current) {
+    if (inputNama) inputNama.value = current.nama || '';
+    if (inputNip) inputNip.value = current.nip || '';
+    if (selectJabatan) selectJabatan.value = current.jabatan || '';
+  }
+
+  if (closeBtn) {
+    closeBtn.style.display = (canClose && current && current.nama) ? 'flex' : 'none';
+  }
+
+  if (modal) modal.classList.add('active');
+}
+
+function closeOperatorModal() {
+  const op = getOperatorProfile();
+  if (!op || !op.nama || !op.nip || !op.jabatan) {
+    alert('Harap lengkapi seluruh data identitas operator terlebih dahulu.');
+    return;
+  }
+  const modal = document.getElementById('operatorModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function handleOperatorFormSubmit(event) {
+  event.preventDefault();
+  const nama = (document.getElementById('inputOpNama')?.value || '').trim();
+  const nip = (document.getElementById('inputOpNip')?.value || '').trim();
+  const jabatan = (document.getElementById('selectOpJabatan')?.value || '').trim();
+
+  if (!nama || !nip || !jabatan) {
+    alert('Harap lengkapi semua kolom identitas operator!');
+    return;
+  }
+
+  saveOperatorProfile({ nama, nip, jabatan });
+  alert(`Identitas Anda berhasil disimpan:\n${nama}\nNIP: ${nip}\nJabatan: ${jabatan}\n\nSelamat bertugas!`);
+  const modal = document.getElementById('operatorModal');
+  if (modal) modal.classList.remove('active');
+}
+
+/**
+ * ==============================================================================
+ * 2. CONFIGURATION & SETTINGS
  * ==============================================================================
  */
 function openSettingsModal() {
@@ -622,6 +710,13 @@ function deleteCurrentPhoto() {
  * ==============================================================================
  */
 async function startRenderAndUpload() {
+  const op = getOperatorProfile();
+  if (!op || !op.nama || !op.nip || !op.jabatan) {
+    alert('Harap lengkapi identitas operator terlebih dahulu sebelum melakukan upload.');
+    openOperatorModal(false);
+    return;
+  }
+
   const filledSlots = pagesState.filter(p => p.dataUrl !== null);
   if (filledSlots.length === 0) {
     alert('Harap ambil minimal 1 foto halaman dokumen sebelum render.');
@@ -670,11 +765,11 @@ async function startRenderAndUpload() {
 
       doc.addImage(imgData, 'JPEG', margin, margin, renderWidth, renderHeight, undefined, 'FAST');
 
-      // Watermark Stempel Wilayah & Waktu di margin bawah
-      doc.setFontSize(8);
-      doc.setTextColor(100);
+      // Watermark Stempel Wilayah & Waktu & Operator di margin bawah
+      doc.setFontSize(7.5);
+      doc.setTextColor(90);
       const timestampStr = new Date().toLocaleString('id-ID');
-      const watermarkText = `SIMAMBIL KPU | ${kecamatan} - ${desa} - TPS ${formatTpsNum(tps)} | Hal ${i + 1}/${filledSlots.length} | ${timestampStr}`;
+      const watermarkText = `SIMAMBIL KPU GORONTALO | ${kecamatan} - ${desa} - TPS ${formatTpsNum(tps)} | Operator: ${op.nama} (${op.nip}) | Hal ${i + 1}/${filledSlots.length} | ${timestampStr}`;
       doc.text(watermarkText, margin, pageHeight - 5);
 
       updateProgress(25 + Math.round(((i + 1) / filledSlots.length) * 45));
@@ -697,7 +792,12 @@ async function startRenderAndUpload() {
         kecamatan: kecamatan,
         desa: desa,
         tps: formatTpsNum(tps),
-        totalHalaman: filledSlots.length
+        totalHalaman: filledSlots.length,
+        operator: {
+          nama: op.nama,
+          nip: op.nip,
+          jabatan: op.jabatan
+        }
       }
     };
 

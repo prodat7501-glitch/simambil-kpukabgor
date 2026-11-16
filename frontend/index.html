@@ -30,12 +30,17 @@
       <div class="header-brand">
         <img src="logo-kpu.png" alt="Logo KPU" class="header-logo-img" onerror="this.style.display='none'; document.getElementById('textLogo').style.display='flex';">
         <div id="textLogo" class="header-logo" style="display:none;">KPU</div>
-        <div>
-          <h1 class="header-title">SIMAMBIL</h1>
-          <p class="header-subtitle">Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan</p>
+        <div class="header-text-container">
+          <h1 class="header-org-title">Komisi Pemilihan Umum</h1>
+          <div class="header-org-sub">KABUPATEN GORONTALO</div>
+          <div class="header-app-tag">SIMAMBIL</div>
         </div>
       </div>
       <div class="header-actions">
+        <button id="btnOperatorProfile" class="operator-profile-pill" onclick="openOperatorModal(true)" title="Identitas Operator">
+          <span class="operator-avatar-icon">👤</span>
+          <span id="headerOpNameShort" class="operator-name-text">Operator</span>
+        </button>
         <button class="icon-btn-header" onclick="openSettingsModal()" title="Pengaturan Endpoint API">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"></circle>
@@ -342,6 +347,62 @@
           Foto Ulang
         </button>
       </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL REGISTRASI / IDENTITAS OPERATOR                                     -->
+    <!-- ========================================================================= -->
+    <div id="operatorModal" class="generic-modal">
+      <div style="display: flex; justify-content: flex-end;">
+        <button id="closeOpModalBtn" class="camera-close-btn" onclick="closeOperatorModal()" style="display: none;">&times;</button>
+      </div>
+
+      <div class="dialog-box">
+        <div style="text-align: center; margin-bottom: 12px;">
+          <img src="logo-kpu.png" alt="Logo KPU" style="width: 44px; height: 44px; object-fit: contain; margin-bottom: 6px;" onerror="this.style.display='none';">
+          <h3 style="font-size: 15px; font-weight: 800; color: var(--kpu-maroon);">
+            IDENTITAS OPERATOR SIMAMBIL
+          </h3>
+          <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            Komisi Pemilihan Umum Kabupaten Gorontalo<br>Mohon lengkapi identitas Anda sebelum memulai proses dokumentasi.
+          </p>
+        </div>
+
+        <form onsubmit="handleOperatorFormSubmit(event)">
+          <div class="form-group">
+            <label class="form-label" for="inputOpNama">Nama Lengkap Operator *</label>
+            <input type="text" id="inputOpNama" class="form-input" placeholder="Contoh: Budi Santoso" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputOpNip">NIP / Nomor Identitas *</label>
+            <input type="text" id="inputOpNip" class="form-input" placeholder="Masukkan NIP (atau '-' jika non-NIP)" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selectOpJabatan">Jabatan / Peran *</label>
+            <select id="selectOpJabatan" class="form-select" required>
+              <option value="">-- Pilih Jabatan --</option>
+              <option value="Operator TPS">Operator TPS</option>
+              <option value="Anggota KPPS">Anggota KPPS</option>
+              <option value="Ketua KPPS">Ketua KPPS</option>
+              <option value="PPS (Panitia Pemungutan Suara)">PPS (Panitia Pemungutan Suara)</option>
+              <option value="PPK (Panitia Pemilihan Kecamatan)">PPK (Panitia Pemilihan Kecamatan)</option>
+              <option value="Admin / Tim IT KPU Kab. Gorontalo">Admin / Tim IT KPU Kab. Gorontalo</option>
+              <option value="Pengawas TPS / Bawaslu">Pengawas TPS / Bawaslu</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+          </div>
+
+          <div style="margin-top: 18px;">
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+              Simpan Identitas & Mulai
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div></div>
     </div>
 
     <!-- ========================================================================= -->
