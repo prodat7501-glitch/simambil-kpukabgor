@@ -288,8 +288,14 @@ function uploadCompiledDocument(payload) {
 
     const op = meta.operator || {};
     const opNama = String(op.nama || '').trim();
-    const opNip = String(op.nip || '').trim();
+    const opNipRaw = String(op.nip || '').trim().replace(/\s+/g, '');
     const opJabatan = String(op.jabatan || '').trim();
+
+    // Validasi Keamanan NIP Operator (VULN-02: Wajib Angka Murni)
+    if (opNipRaw && !/^\d+$/.test(opNipRaw)) {
+      throw new Error('Validasi Identitas Gagal: NIP operator harus berupa angka murni tanpa huruf atau karakter simbol.');
+    }
+    const opNip = opNipRaw || '-';
 
     // 1. Standarisasi Nama File sesuai SOT 06-BUSINESS-RULES.md
     // [JENIS_FILE]_[KODE_LEMBAGA]_[KECAMATAN]_[DESA]_[TPS].pdf

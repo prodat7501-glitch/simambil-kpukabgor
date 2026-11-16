@@ -18,7 +18,7 @@ Aplikasi SIMAMBIL telah diaudit secara menyeluruh untuk mendeteksi potensi keren
 | ID | Kerentanan | Keparahan | Vektor OWASP | Komponen Terdampak | Status Remediasi |
 | :--- | :--- | :---: | :---: | :--- | :---: |
 | **VULN-01** | Broken Access Control (Unauthenticated Public API) | **TINGGI** | A01:2021 | `backend/Code.gs`, `frontend/api/gas.js` | ✅ **TERSELESAIKAN** (Token API `API_AUTH_TOKEN` Aktif) |
-| **VULN-02** | Operator Identity Spoofing (Client-Side Trust) | **SEDANG** | A07:2021 | `frontend/app.js` | ⏳ Terencana (Fase Lanjutan) |
+| **VULN-02** | Operator Identity Spoofing (Client-Side Trust) | **SEDANG** | A07:2021 | `frontend/app.js`, `backend/Code.gs` | ✅ **TERSELESAIKAN** (Validasi Wajib Angka Murni 8-18 Digit & Real-Time Masking) |
 | **VULN-03** | Google Sheets Formula / CSV Injection (CWE-1236) | **SEDANG** | A03:2021 | `backend/Code.gs` (`logUploadedDocument`) | ✅ **TERSELESAIKAN** (`escapeSpreadsheetFormula`) |
 | **VULN-04** | Unrestricted File Upload & Storage Exhaustion (DoS) | **SEDANG** | A04:2021 | `backend/Code.gs`, `frontend/app.js` | ✅ **TERSELESAIKAN** (Max 1MB: 3 Hal, Max 5MB: 20 Hal, Header `%PDF-`) |
 | **VULN-05** | Sensitive Document Exposure (Public Google Drive Link) | **SEDANG** | A05:2021 | `backend/Code.gs` (`createdFile.setSharing`) | ⏳ Opsional |

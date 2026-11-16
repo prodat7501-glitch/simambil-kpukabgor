@@ -467,8 +467,9 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="inputOpNip">NIP / Nomor Identitas *</label>
-            <input type="text" id="inputOpNip" class="form-input" placeholder="Masukkan NIP (atau '-' jika non-NIP)" required>
+            <label class="form-label" for="inputOpNip">NIP (Nomor Induk Pegawai - Wajib Angka) *</label>
+            <input type="text" id="inputOpNip" class="form-input" placeholder="Contoh: 199003212024211015 (18 digit angka)" inputmode="numeric" pattern="[0-9]*" maxlength="18" required>
+            <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px;">Hanya menerima karakter angka (0-9).</div>
           </div>
 
           <div class="form-group">

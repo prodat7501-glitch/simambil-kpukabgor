@@ -59,6 +59,14 @@ document.addEventListener('DOMContentLoaded', () => {
   checkOperatorGate();
   syncAllPickers();
   updateTargetPageUI();
+
+  // Masking input NIP: Hanya izinkan angka murni secara real-time
+  const inputNip = document.getElementById('inputOpNip');
+  if (inputNip) {
+    inputNip.addEventListener('input', function () {
+      this.value = this.value.replace(/\D/g, '').slice(0, 18);
+    });
+  }
 });
 
 /**
@@ -249,11 +257,35 @@ function closeOperatorModal() {
 function handleOperatorFormSubmit(event) {
   event.preventDefault();
   const nama = (document.getElementById('inputOpNama')?.value || '').trim();
-  const nip = (document.getElementById('inputOpNip')?.value || '').trim();
+  const nipRaw = (document.getElementById('inputOpNip')?.value || '').trim();
   const jabatan = (document.getElementById('selectOpJabatan')?.value || '').trim();
 
-  if (!nama || !nip || (jabatan !== 'Sekretariat' && jabatan !== 'Komisioner')) {
+  if (!nama || !nipRaw || (jabatan !== 'Sekretariat' && jabatan !== 'Komisioner')) {
     showAppToast('Harap lengkapi semua kolom dan pilih Jabatan!', 'warning');
+    return;
+  }
+
+  // Validasi Ketat NIP: Wajib Angka Murni (VULN-02 Hardening)
+  const nip = nipRaw.replace(/\s+/g, '');
+  if (!/^\d+$/.test(nip)) {
+    showAppToast('NIP tidak valid: hanya boleh berisi angka!', 'error');
+    showAppDialog({
+      title: 'Format NIP Ditolak',
+      type: 'error',
+      message: 'Sistem menolak input NIP karena mengandung huruf atau karakter selain angka.<br><br>NIP wajib berupa <strong>angka murni (digit 0-9)</strong>.<br>Contoh NIP ASN KPU: <code>199003212024211015</code>.',
+      confirmText: 'Perbaiki NIP'
+    });
+    return;
+  }
+
+  if (nip.length < 8 || nip.length > 18) {
+    showAppToast('NIP harus terdiri dari 8 hingga 18 digit angka!', 'warning');
+    showAppDialog({
+      title: 'Panjang NIP Tidak Sesuai',
+      type: 'warning',
+      message: `Jumlah digit NIP yang Anda masukkan adalah <strong>${nip.length} digit</strong>.<br><br>NIP standar ASN/PNS KPU terdiri dari <strong>18 digit angka</strong> (contoh: <code>199003212024211015</code>). Pastikan digit yang dimasukkan benar.`,
+      confirmText: 'Periksa Kembali'
+    });
     return;
   }
 
