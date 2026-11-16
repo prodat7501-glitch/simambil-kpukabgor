@@ -1,7 +1,7 @@
 {
-  "name": "SIMAMBIL - Dokumentasi Kamera Pemilu",
+  "name": "SIMAMBIL - Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan",
   "short_name": "SIMAMBIL",
-  "description": "Aplikasi PWA Dokumentasi & Rekapitulasi Berkas C-Plano / D-Plano Berbasis Vercel & Google Apps Script",
+  "description": "Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan (C-Plano / D-Plano) Berbasis Vercel & Google Apps Script",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

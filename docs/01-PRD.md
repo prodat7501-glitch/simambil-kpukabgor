@@ -1,18 +1,22 @@
 # Product Requirements Document (PRD)
-## Project Name: PWA Dokumen Kamera Pemilu (SIMAMBIL)
+## Project Name: SIMAMBIL (Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan)
 
 ### 1. Ringkasan & Tujuan
-Aplikasi web responsif berbasis PWA (Progressive Web App) untuk petugas lapangan/admin guna mendokumentasikan dokumen hasil penghitungan suara (C-Plano / D-Plano) melalui kamera handphone, menyatukan (render) banyak halaman foto (hingga 20 halaman) menjadi 1 berkas dokumen utuh (PDF), serta menyimpannya otomatis ke Google Drive dengan format penamaan standar baku. Dilengkapi modul rekapitulasi monitoring wilayah untuk mendeteksi TPS yang belum/sudah mengunggah berkas secara real-time.
+SIMAMBIL (Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan) adalah aplikasi web responsif berbasis PWA (Progressive Web App) untuk petugas lapangan/admin guna mendokumentasikan berkas fisik hasil penghitungan suara (C-Plano / D-Plano) melalui kamera handphone, menyatukan (render) banyak halaman foto (hingga 20 halaman) menjadi 1 berkas dokumen utuh (PDF), serta menyimpannya otomatis ke Google Drive target khusus dengan format penamaan standar baku. Dilengkapi modul rekapitulasi monitoring wilayah untuk mendeteksi TPS yang belum/sudah mengunggah berkas secara real-time.
 
 ### 2. Ruang Lingkup & Target Platform (Decoupled Architecture)
 - **Frontend Client (Vercel & GitHub):** 
-  - Aplikasi web PWA mandiri (dapat di-push ke GitHub dan di-deploy langsung di Vercel).
+  - Aplikasi web PWA mandiri (di-push ke GitHub dan di-deploy langsung di Vercel).
   - Akses kamera smartphone langsung via HTML5 Canvas / MediaStream.
   - Kompresi gambar dan penyusunan multi-halaman PDF berjalan di sisi klien (client-side browser).
   - PWA offline-ready via Service Worker & Web App Manifest (`manifest.json`).
 - **Backend & Database (Google Apps Script as REST API):**
   - Google Apps Script (GAS) Web App bertindak sebagai **Headless REST API** (menerima HTTP GET & POST JSON).
-  - Terhubung dengan Google Sheets (Basis Data Master Wilayah, Kategori, Log, dan Rekap Progres) dan Google Drive (Folder Penyimpanan File Berjenjang).
+  - Terhubung dengan Google Sheets (Basis Data Master Wilayah, Kategori, Log, dan Rekap Progres).
+  - Terhubung langsung ke **Target Folder Google Drive Utama**:
+    - **Folder ID:** `1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`
+    - **URL:** `https://drive.google.com/drive/folders/1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`
+    - Struktur penyimpanan otomatis berjenjang: `[Root Folder Target] / [Kecamatan] / [Desa] / [TPS] / [File.pdf]`.
 
 ### 3. Role & Hak Akses
 - **Petugas Lapangan / Operator TPS:** Memilih filter wilayah, memotret dokumen per halaman (Halaman 1–20), preview/retake/rotate, dan upload dokumen yang sudah digabung.

@@ -19,7 +19,8 @@ const SHEETS = {
   REKAP: 'Rekap_Progres'
 };
 
-// Root Folder Name di Google Drive
+// Target Root Folder ID di Google Drive
+const TARGET_DRIVE_FOLDER_ID = '1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI';
 const APP_ROOT_FOLDER_NAME = 'SIMAMBIL_DOKUMEN_PEMILU';
 
 /**
@@ -466,6 +467,16 @@ function logUploadedDocument(item) {
 }
 
 function getOrCreateRootFolder() {
+  // 1. Prioritas utama: Menggunakan Target Drive Folder ID spesifik
+  if (TARGET_DRIVE_FOLDER_ID && TARGET_DRIVE_FOLDER_ID.trim() !== '') {
+    try {
+      return DriveApp.getFolderById(TARGET_DRIVE_FOLDER_ID.trim());
+    } catch (e) {
+      Logger.log('Target Drive Folder ID (' + TARGET_DRIVE_FOLDER_ID + ') tidak dapat diakses atau belum diotorisasi: ' + e.message);
+    }
+  }
+
+  // 2. Prioritas kedua: Menggunakan Script Property jika pernah disimpan
   const rootId = PropertiesService.getScriptProperties().getProperty('APP_ROOT_FOLDER_ID');
   if (rootId) {
     try {
@@ -475,6 +486,7 @@ function getOrCreateRootFolder() {
     }
   }
 
+  // 3. Fallback: Cari atau buat folder dengan nama default
   const folders = DriveApp.getFoldersByName(APP_ROOT_FOLDER_NAME);
   if (folders.hasNext()) {
     const f = folders.next();

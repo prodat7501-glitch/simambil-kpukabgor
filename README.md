@@ -1,8 +1,9 @@
-# SIMAMBIL - Sistem Informasi Dokumentasi & Rekapitulasi Pemilu
+# SIMAMBIL - Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan
 
 Aplikasi PWA Dokumentasi Berkas Hasil Penghitungan Suara (Model C-Plano / D-Plano) berbasis **Decoupled Architecture**:
 - **Frontend:** Progressive Web App (PWA) di-deploy ke **Vercel** via **GitHub**.
-- **Backend:** **Google Apps Script (GAS) Headless REST API** terhubung ke Google Sheets (Data Master & Log) dan Google Drive (Penyimpanan Berkas Otomatis).
+- **Backend:** **Google Apps Script (GAS) Headless REST API** terhubung ke Google Sheets (Data Master & Log) dan Google Drive.
+- **Target Google Drive Root Folder:** [Buka Google Drive](https://drive.google.com/drive/folders/1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI?usp=sharing) (`1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`).
 
 ---
 
@@ -18,7 +19,7 @@ SIMAMBIL/
 │   ├── 06-BUSINESS-RULES.md
 │   └── 07-IMPLEMENTATION-PLAN.md
 ├── backend/                  # Google Apps Script REST API
-│   ├── Code.gs               # API Router (doGet, doPost), Sheets & Drive Handler
+│   ├── Code.gs               # API Router (doGet, doPost), Sheets & Drive Handler (Folder Target)
 │   └── appsscript.json       # GAS Manifest (V8, Timezone WITA)
 └── frontend/                 # PWA Frontend (Siap Deploy ke Vercel)
     ├── index.html            # Shell Antarmuka Responsif Mobile
@@ -54,12 +55,10 @@ SIMAMBIL/
    const DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
    ```
    *(Catatan: URL ini juga bisa diatur/diubah kapan saja langsung melalui menu ⚙️ Pengaturan di dalam aplikasi tanpa perlu deploy ulang)*.
-2. Inisialisasi Git dan push ke GitHub:
+2. Push perubahan ke GitHub:
    ```bash
-   git init
    git add .
-   git commit -m "feat: initial decoupled SIMAMBIL PWA"
-   git remote add origin https://github.com/USERNAME/REPO-SIMAMBIL.git
+   git commit -m "feat: set target Drive folder and SIMAMBIL official branding"
    git push -u origin main
    ```
 3. Buka dashboard [Vercel](https://vercel.com):
@@ -67,4 +66,5 @@ SIMAMBIL/
    - Impor repositori GitHub Anda.
    - Pada bagian **Root Directory**, pilih folder **`frontend`**.
    - Klik **Deploy**.
-4. Aplikasi SIMAMBIL kini aktif dan dapat langsung dibuka di browser smartphone petugas!
+4. Berkas yang diunggah akan otomatis terorganisir rapi di dalam Google Drive target:
+   `[1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI] / [KECAMATAN] / [DESA] / TPS [001] / [File.pdf]`.

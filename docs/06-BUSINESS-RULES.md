@@ -17,13 +17,18 @@
 - Halaman harus terurut secara sekuensial pada saat rendering (Halaman 1 menjadi page 1 di PDF, dst).
 - Slot halaman yang tidak diambil/kosong akan diabaikan (tidak disisipkan halaman kosong ke PDF).
 
-### 3. Batasan Teknis & Kompresi (Google Apps Script Limitation)
-- Google Apps Script memiliki limit eksekusi payload sekitar 10MB - 50MB per request.
+### 3. Batasan Teknis & Kompresi (Payload Optimization)
 - Setiap foto yang diambil dari kamera beresolusi tinggi wajib dikompresi di sisi browser (client-side canvas) ke resolusi maksimal 1600x1200 dengan kualitas JPEG 0.7 - 0.8 sebelum dikonversi ke PDF.
-- File PDF gabungan berukuran di bawah 15 MB agar upload via `google.script.run` berjalan stabil tanpa timeout.
+- File PDF gabungan berukuran di bawah 15 MB agar upload via HTTP REST API berjalan stabil tanpa timeout.
 
 ### 4. Aturan Rekapitulasi & Deteksi Wilayah Pending
-- Suatu TPS dinyatakan **LENGKAP (🟢)** jika seluruh jenis dokumen/lembaga target (misal: 7 pemilihan) sudah terupload.
+- Suatu TPS dinyatakan **LENGKAP (🟢)** jika seluruh jenis dokumen/lembaga target (7 pemilihan) sudah terupload.
 - Suatu TPS dinyatakan **BELUM LENGKAP (🟡)** jika sudah ada minimal 1 dokumen terupload tetapi belum lengkap 7 pemilihan.
 - Suatu TPS dinyatakan **KOSONG / PENDING (🔴)** jika belum ada dokumen sama sekali yang tercatat di `Log_Dokumen`.
-- Folder Drive dibuat otomatis berjenjang: `[Root Folder] / [Kecamatan] / [Desa] / [TPS] / [File.pdf]`.
+
+### 5. Aturan Folder Penyimpanan Google Drive
+- Seluruh dokumen PDF yang diunggah disimpan pada Root Folder Google Drive target:
+  - **Drive Folder ID:** `1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`
+  - **URL:** `https://drive.google.com/drive/folders/1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI`
+- Di dalam folder root tersebut, sistem secara otomatis membentuk subfolder berjenjang jika belum tersedia:
+  `[Folder Target: 1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI] / [Kecamatan] / [Desa] / TPS [TPS] / [File.pdf]`
