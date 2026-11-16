@@ -2,7 +2,7 @@
  * Service Worker untuk SIMAMBIL PWA (Vercel Edition)
  * Caching shell UI & offline resilience
  */
-const CACHE_NAME = 'simambil-vercel-v19';
+const CACHE_NAME = 'simambil-vercel-v20';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -40,8 +40,13 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // Lewatkan request API Google Apps Script dari cache agar selalu up to date
-  if (event.request.url.includes('script.google.com') || event.request.url.includes('script.googleusercontent.com')) {
+  // Lewatkan request API dan query aksi dinamis dari cache agar data selalu real-time dari server
+  if (
+    event.request.url.includes('/api/') ||
+    event.request.url.includes('action=') ||
+    event.request.url.includes('script.google.com') ||
+    event.request.url.includes('script.googleusercontent.com')
+  ) {
     return;
   }
 

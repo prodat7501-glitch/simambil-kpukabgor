@@ -75,3 +75,17 @@
     `SIMAMBIL KPU Kab. Gorontalo | [KECAMATAN] - [DESA] - TPS [TPS] | Operator: [NAMA] ([NIP]) | Hal X/Y | [TIMESTAMP]`
     *(Wajib termuat dalam 1 baris utuh; jika teks panjang karena nama desa/operator panjang, ukuran huruf otomatis diperkecil secara dinamis dan proporsional).*
   - Dicatat ke basis data **Log_Dokumen** (Kolom K, L, M) sebagai rekam jejak audit yang akuntabel.
+
+### 7. Aturan Default Wilayah & Retensi Sesi Dokumentasi (Sticky Region Session)
+1. **Default State Formulir Wilayah:**
+   - Saat aplikasi pertama kali dibuka atau formulir direset, pilihan Kecamatan, Desa, dan Nomor TPS berada dalam kondisi **KOSONG** (default `-- Pilih Kecamatan --`, `-- Pilih Desa --`, `-- Pilih TPS --`).
+   - Sistem dilarang memilihkan secara otomatis kecamatan atau desa urutan teratas demi memberi kebebasan penuh bagi operator untuk menentukan titik kerja dokumentasi secara manual.
+   - Tampilan pratinjau nama berkas menampilkan placeholder panduan (`[Pilih Kecamatan, Desa, & TPS Terlebih Dahulu]`).
+2. **Retensi Sesi Wilayah (Sticky Region Workflow):**
+   - Saat operator telah menentukan suatu wilayah (Kecamatan dan Desa) dan melakukan pemotretan dokumen TPS, pilihan Kecamatan dan Desa tersebut **wajib dipertahankan** selama proses render dan pengiriman berkas berlangsung.
+   - Setelah satu dokumen TPS berhasil dirender dan dikirim ke server/Google Drive:
+     - Kecamatan dan Desa **tetap dipertahankan aktif**.
+     - Sistem secara cerdas mengarahkan ke nomor TPS berikutnya di desa tersebut yang belum selesai/belum diunggah (auto-advance TPS).
+     - Formulir slot foto di-reset bersih agar operator dapat langsung melanjutkan dokumentasi TPS berikutnya tanpa memilih ulang wilayah.
+3. **Reset Default Otomatis:**
+   - Jika **seluruh nomor TPS pada Desa tersebut telah selesai dirender dan dikirim**, sistem secara otomatis me-reset pilihan Kecamatan, Desa, dan TPS kembali ke status default kosong (`-- Pilih Kecamatan --`), siap untuk memilih desa atau kecamatan baru.

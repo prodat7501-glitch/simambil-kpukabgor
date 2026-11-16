@@ -555,11 +555,21 @@ function handleMasterDataSuccess(res) {
       }
     });
 
-    // Set default pilihan pertama jika ada
-    if (selectKec && wilayah.length > 0) {
-      selectKec.value = wilayah[0].kecamatan;
-      onKecamatanChanged();
+    // Kosongkan default pilihan wilayah (SOT User Request: biarkan operator sendiri yang memilih)
+    if (selectKec) {
+      selectKec.value = '';
     }
+    if (selectDesa) {
+      selectDesa.innerHTML = '<option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>';
+      selectDesa.disabled = true;
+      selectDesa.value = '';
+    }
+    if (selectTPS) {
+      selectTPS.innerHTML = '<option value="">-- Pilih Desa Terlebih Dahulu --</option>';
+      selectTPS.disabled = true;
+      selectTPS.value = '';
+    }
+    updateGeneratedFilename();
   }
 
   syncAllPickers();
@@ -571,8 +581,9 @@ function handleMasterDataSuccess(res) {
 
 /**
  * Cascading Dropdown: Kecamatan -> Desa -> TPS
+ * Mendukung preserve wilayah jika sedang dalam sesi dokumentasi aktif
  */
-function onKecamatanChanged() {
+function onKecamatanChanged(preserveDesa, preserveTps) {
   const selectedKec = document.getElementById('selectKecamatan')?.value || '';
   const selectDesa = document.getElementById('selectDesa');
   const selectTPS = document.getElementById('selectTPS');
@@ -585,6 +596,8 @@ function onKecamatanChanged() {
 
   if (!selectedKec || !masterDataCache) {
     selectDesa.disabled = true;
+    selectDesa.value = '';
+    selectTPS.value = '';
     updateGeneratedFilename();
     syncAllPickers();
     return;
@@ -600,20 +613,26 @@ function onKecamatanChanged() {
     });
     selectDesa.disabled = false;
     
-    // Pilih otomatis desa pertama
-    if (kecObj.desaList.length > 0) {
-      selectDesa.value = kecObj.desaList[0].desa;
-      onDesaChanged();
+    // Jika ada permintaan preserve desa dari sesi dokumentasi aktif atau navigasi rekap
+    if (preserveDesa && kecObj.desaList.some(d => d.desa === preserveDesa)) {
+      selectDesa.value = preserveDesa;
+      onDesaChanged(preserveTps);
+    } else {
+      selectDesa.value = '';
+      selectTPS.value = '';
+      selectTPS.disabled = true;
     }
   } else {
     selectDesa.disabled = true;
+    selectDesa.value = '';
+    selectTPS.value = '';
   }
 
   updateGeneratedFilename();
   syncAllPickers();
 }
 
-function onDesaChanged() {
+function onDesaChanged(preserveTps) {
   const selectedKec = document.getElementById('selectKecamatan')?.value || '';
   const selectedDesa = document.getElementById('selectDesa')?.value || '';
   const selectTPS = document.getElementById('selectTPS');
@@ -623,6 +642,7 @@ function onDesaChanged() {
 
   if (!selectedKec || !selectedDesa || !masterDataCache) {
     selectTPS.disabled = true;
+    selectTPS.value = '';
     updateGeneratedFilename();
     syncAllPickers();
     return;
@@ -640,12 +660,15 @@ function onDesaChanged() {
       });
       selectTPS.disabled = false;
 
-      // Pilih otomatis TPS pertama
-      if (desaObj.tpsList.length > 0) {
-        selectTPS.value = desaObj.tpsList[0];
+      // Jika ada permintaan preserve TPS dari sesi dokumentasi aktif atau navigasi rekap
+      if (preserveTps && desaObj.tpsList.includes(preserveTps)) {
+        selectTPS.value = preserveTps;
+      } else {
+        selectTPS.value = '';
       }
     } else {
       selectTPS.disabled = true;
+      selectTPS.value = '';
     }
   }
 
@@ -660,20 +683,33 @@ function onDesaChanged() {
 function updateGeneratedFilename() {
   const jenis = document.getElementById('selectJenisFile')?.value || 'Model C-Plano';
   const lembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
-  const kec = document.getElementById('selectKecamatan')?.value || 'ASPARAGA';
-  const desa = document.getElementById('selectDesa')?.value || 'DESA';
-  const tps = document.getElementById('selectTPS')?.value || '001';
+  const kec = document.getElementById('selectKecamatan')?.value || '';
+  const desa = document.getElementById('selectDesa')?.value || '';
+  const tps = document.getElementById('selectTPS')?.value || '';
 
   const cleanJenis = sanitizeStr(jenis);
   const cleanLembaga = sanitizeStr(lembaga);
   const cleanKec = sanitizeStr(kec);
   const cleanDesa = sanitizeStr(desa);
-  const cleanTps = formatTpsNum(tps);
+  const cleanTps = tps ? formatTpsNum(tps) : '';
+
+  const previewEl = document.getElementById('previewFilename');
+
+  if (!kec || !desa || !tps) {
+    const placeholder = `${cleanJenis}_${cleanLembaga}_[KEC]_[DESA]_[TPS].pdf`;
+    if (previewEl) {
+      previewEl.textContent = placeholder;
+      previewEl.style.color = 'var(--text-muted)';
+      previewEl.style.fontStyle = 'italic';
+    }
+    return '';
+  }
 
   const filename = `${cleanJenis}_${cleanLembaga}_${cleanKec}_${cleanDesa}_${cleanTps}.pdf`;
-  const previewEl = document.getElementById('previewFilename');
   if (previewEl) {
     previewEl.textContent = filename;
+    previewEl.style.color = 'var(--kpu-maroon)';
+    previewEl.style.fontStyle = 'normal';
   }
   return filename;
 }
@@ -850,6 +886,24 @@ function confirmResetPages() {
  * ==============================================================================
  */
 function openCameraModal(index) {
+  const kec = document.getElementById('selectKecamatan')?.value || '';
+  const desa = document.getElementById('selectDesa')?.value || '';
+  const tps = document.getElementById('selectTPS')?.value || '';
+
+  if (!kec || !desa || !tps) {
+    showAppDialog({
+      title: 'Pilih Wilayah Terlebih Dahulu',
+      type: 'warning',
+      message: 'Silakan tentukan pilihan <strong>Kecamatan, Desa, dan Nomor TPS</strong> pada formulir di atas sebelum mengambil foto dokumen.',
+      confirmText: 'Pilih Wilayah',
+      onConfirm: () => {
+        const trigKec = document.getElementById('triggerKecamatan');
+        if (trigKec) trigKec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    return;
+  }
+
   activeSlotIndex = index;
   const modal = document.getElementById('cameraModal');
   const title = document.getElementById('cameraSlotTitle');
@@ -1372,7 +1426,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
         }
       }
 
-      onUploadSuccess(resJson);
+      onUploadSuccess(resJson, { kecamatan, desa, tps, fileName });
 
     } else {
       // Mock upload simulator jika URL belum diisi
@@ -1381,7 +1435,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
           status: 'success',
           message: 'Simulasi: Dokumen berhasil di-render secara lokal (koneksi ke Google Drive sedang offline)',
           fileName: fileName
-        });
+        }, { kecamatan, desa, tps, fileName });
       }, 1500);
     }
 
@@ -1396,7 +1450,90 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
   }
 }
 
-function onUploadSuccess(res) {
+/**
+ * Helper Evaluasi Kelengkapan TPS per Desa & Auto-Advance Sesi Wilayah
+ * SOT: User Request - Pertahankan Kecamatan & Desa yang sedang didokumentasikan
+ * sampai seluruh TPS di wilayah tersebut selesai dirender & dikirim.
+ * Jika seluruh TPS selesai, reset pilihan wilayah ke default.
+ */
+function checkDesaCompletionAndAdvance(kecamatan, desa, currentTps) {
+  if (!masterDataCache || !kecamatan || !desa) {
+    return { allCompleted: true, nextTps: null };
+  }
+
+  const kecObj = masterDataCache.wilayah.find(w => w.kecamatan === kecamatan);
+  const desaObj = kecObj ? kecObj.desaList.find(d => d.desa === desa) : null;
+  const tpsList = desaObj ? (desaObj.tpsList || []) : [];
+
+  if (tpsList.length === 0) {
+    return { allCompleted: true, nextTps: null };
+  }
+
+  const normCurrentTps = formatTpsNum(currentTps);
+  const currentIndex = tpsList.findIndex(t => formatTpsNum(t) === normCurrentTps);
+
+  // Ambil data TPS di desa ini dari allRekapRecords terkini
+  const desaRecords = allRekapRecords.filter(r => r.kecamatan === kecamatan && r.desa === desa);
+
+  // Identifikasi TPS yang belum memiliki dokumen atau masih kosong
+  const pendingTpsList = tpsList.filter(t => {
+    const normT = formatTpsNum(t);
+    // TPS yang baru saja sukses diunggah pasti sudah bukan pending
+    if (normT === normCurrentTps) return false;
+    const rec = desaRecords.find(r => formatTpsNum(r.tps) === normT);
+    return !rec || rec.status === 'KOSONG';
+  });
+
+  if (pendingTpsList.length === 0) {
+    // Seluruh TPS di desa ini sudah selesai dirender dan dikirim!
+    return {
+      allCompleted: true,
+      nextTps: null,
+      totalTps: tpsList.length
+    };
+  }
+
+  // Masih ada TPS yang belum diunggah di desa ini.
+  // Cari TPS berikutnya setelah currentIndex dalam urutan, atau ambil yang pertama di pending list
+  let nextTps = pendingTpsList.find(t => {
+    const idx = tpsList.findIndex(x => formatTpsNum(x) === formatTpsNum(t));
+    return idx > currentIndex;
+  });
+
+  if (!nextTps) {
+    nextTps = pendingTpsList[0];
+  }
+
+  return {
+    allCompleted: false,
+    nextTps: nextTps,
+    remainingCount: pendingTpsList.length,
+    totalTps: tpsList.length
+  };
+}
+
+function resetWilayahSelectionToDefault() {
+  const selectKec = document.getElementById('selectKecamatan');
+  const selectDesa = document.getElementById('selectDesa');
+  const selectTPS = document.getElementById('selectTPS');
+
+  if (selectKec) selectKec.value = '';
+  if (selectDesa) {
+    selectDesa.innerHTML = '<option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>';
+    selectDesa.value = '';
+    selectDesa.disabled = true;
+  }
+  if (selectTPS) {
+    selectTPS.innerHTML = '<option value="">-- Pilih Desa Terlebih Dahulu --</option>';
+    selectTPS.value = '';
+    selectTPS.disabled = true;
+  }
+
+  updateGeneratedFilename();
+  syncAllPickers();
+}
+
+function onUploadSuccess(res, meta = {}) {
   updateProgress(100);
   hideLoading();
 
@@ -1405,12 +1542,57 @@ function onUploadSuccess(res) {
     renderPageSlots();
     loadRekapData();
 
+    const kecamatan = meta.kecamatan || document.getElementById('selectKecamatan')?.value || '';
+    const desa = meta.desa || document.getElementById('selectDesa')?.value || '';
+    const currentTps = meta.tps || document.getElementById('selectTPS')?.value || '';
+
+    // Evaluasi apakah masih ada TPS yang perlu didokumentasikan di desa ini
+    const advanceInfo = checkDesaCompletionAndAdvance(kecamatan, desa, currentTps);
+
+    let sessionInfoHtml = '';
+
+    if (advanceInfo.allCompleted) {
+      // Seluruh TPS di wilayah desa ini telah selesai: reset wilayah ke default
+      resetWilayahSelectionToDefault();
+      sessionInfoHtml = `
+        <div style="margin-top: 12px; padding: 10px 12px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; font-size: 11.5px; color: #166534; line-height: 1.4; text-align: left;">
+          🎉 <strong>Seluruh TPS pada Desa ${escapeHtml(desa)} telah selesai dirender &amp; dikirim!</strong><br>
+          Pilihan wilayah pada menu kamera telah otomatis di-reset ke default agar siap untuk wilayah berikutnya.
+        </div>
+      `;
+    } else {
+      // Pertahankan wilayah Kecamatan dan Desa, otomatis beralih ke TPS berikutnya
+      const selectKec = document.getElementById('selectKecamatan');
+      const selectDesa = document.getElementById('selectDesa');
+      const selectTPS = document.getElementById('selectTPS');
+
+      if (selectKec) selectKec.value = kecamatan;
+      if (selectDesa) {
+        selectDesa.value = desa;
+        selectDesa.disabled = false;
+      }
+      if (selectTPS && advanceInfo.nextTps) {
+        selectTPS.value = advanceInfo.nextTps;
+        selectTPS.disabled = false;
+      }
+
+      updateGeneratedFilename();
+      syncAllPickers();
+
+      sessionInfoHtml = `
+        <div style="margin-top: 12px; padding: 10px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; font-size: 11.5px; color: #1E40AF; line-height: 1.4; text-align: left;">
+          📍 <strong>Sesi Wilayah Dipertahankan:</strong> Kec. ${escapeHtml(kecamatan)}, Desa ${escapeHtml(desa)}.<br>
+          Otomatis beralih ke <strong>TPS ${escapeHtml(advanceInfo.nextTps)}</strong> (Tersisa ${advanceInfo.remainingCount} TPS di desa ini).
+        </div>
+      `;
+    }
+
     const driveLink = res.fileUrl ? `<br><br><a href="${res.fileUrl}" target="_blank" style="color:var(--kpu-maroon); font-weight:700; text-decoration:underline;">Buka Berkas di Google Drive</a>` : '';
     showAppDialog({
       title: 'Dokumen Berhasil Diunggah!',
       type: 'success',
-      message: `${escapeHtml(res.message || 'Berkas telah berhasil disimpan ke Google Drive.')}<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || '')}</div>${driveLink}`,
-      confirmText: 'Selesai'
+      message: `${escapeHtml(res.message || 'Berkas telah berhasil disimpan ke Google Drive.')}<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || meta.fileName || '')}</div>${driveLink}${sessionInfoHtml}`,
+      confirmText: 'Lanjutkan'
     });
   } else {
     showAppDialog({
@@ -1459,7 +1641,8 @@ async function loadRekapData() {
   const qParams = new URLSearchParams({
     action: 'getMonitoringSummary',
     kecamatan: filterKec,
-    desa: filterDesa
+    desa: filterDesa,
+    _t: Date.now().toString()
   });
 
   const authToken = AppConfig.getAuthToken ? AppConfig.getAuthToken() : '';
@@ -1467,11 +1650,14 @@ async function loadRekapData() {
     qParams.append('token', authToken);
   }
 
-  // 1. Coba endpoint utama
+  // 1. Coba endpoint utama (Proxy Vercel / GAS)
   if (apiUrl) {
     try {
       const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}${qParams.toString()}`;
-      const res = await fetch(endpoint, { redirect: 'follow' });
+      const res = await fetch(endpoint, {
+        redirect: 'follow',
+        cache: 'no-store'
+      });
       const json = await res.json();
       if (json && json.status === 'success') {
         onRekapDataLoaded(json);
@@ -1486,7 +1672,10 @@ async function loadRekapData() {
   if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
     try {
       const directEndpoint = `${DIRECT_GAS_URL}?${qParams.toString()}`;
-      const res = await fetch(directEndpoint, { redirect: 'follow' });
+      const res = await fetch(directEndpoint, {
+        redirect: 'follow',
+        cache: 'no-store'
+      });
       const json = await res.json();
       if (json && json.status === 'success') {
         onRekapDataLoaded(json);
@@ -1827,8 +2016,29 @@ function renderRekapList() {
     return true;
   });
 
+  // Urutkan filtered: TPS yang memiliki dokumen (BELUM LENGKAP atau LENGKAP) selalu tampil di urutan teratas
+  filtered.sort((a, b) => {
+    const aHasDoc = a.status !== 'KOSONG' ? 1 : 0;
+    const bHasDoc = b.status !== 'KOSONG' ? 1 : 0;
+    if (aHasDoc !== bHasDoc) {
+      return bHasDoc - aHasDoc; // Status aktif (LENGKAP/BELUM LENGKAP) tampil paling awal
+    }
+    if (a.kecamatan !== b.kecamatan) return a.kecamatan.localeCompare(b.kecamatan);
+    if (a.desa !== b.desa) return a.desa.localeCompare(b.desa);
+    return a.tps.localeCompare(b.tps);
+  });
+
+  const activeList = filtered.filter(r => r.status !== 'KOSONG');
+  const emptyList = filtered.filter(r => r.status === 'KOSONG');
+  // Seluruh TPS yang ada dokumennya wajib selalu dirender penuh, disusul hingga 200 TPS kosong
+  const displayList = [...activeList, ...emptyList.slice(0, 200)];
+
   if (countLabel) {
-    countLabel.textContent = `Menampilkan ${filtered.length} TPS`;
+    if (filtered.length > displayList.length) {
+      countLabel.textContent = `Menampilkan ${displayList.length} dari ${filtered.length} TPS (TPS Berisi Ditampilkan Teratas)`;
+    } else {
+      countLabel.textContent = `Menampilkan ${filtered.length} TPS`;
+    }
   }
 
   if (filtered.length === 0) {
@@ -1841,7 +2051,7 @@ function renderRekapList() {
   }
 
   container.innerHTML = '';
-  filtered.slice(0, 100).forEach(rec => {
+  displayList.forEach(rec => {
     const card = document.createElement('div');
     card.className = 'rekap-item-card';
 
@@ -2037,13 +2247,13 @@ function selectTPSFromRekap(kec, desa, tps) {
   const selectKec = document.getElementById('selectKecamatan');
   if (selectKec) {
     selectKec.value = kec;
-    onKecamatanChanged();
+    onKecamatanChanged(desa, tps);
   }
 
   const selectDesa = document.getElementById('selectDesa');
   if (selectDesa) {
     selectDesa.value = desa;
-    onDesaChanged();
+    onDesaChanged(tps);
   }
 
   const selectTPS = document.getElementById('selectTPS');
