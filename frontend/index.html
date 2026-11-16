@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SIMAMBIL - Dokumentasi Kamera Pemilu</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#800000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SIMAMBIL">
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Favicon SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23800000'/%3E%3Ccircle cx='256' cy='256' r='140' fill='none' stroke='%23D4AF37' stroke-width='24'/%3E%3Cpath d='M256 160v192M160 256h192' stroke='%23FFFFFF' stroke-width='28' stroke-linecap='round'/%3E%3C/svg%3E">
+
+  <!-- jsPDF via CDN untuk Client-Side PDF Compilation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top App Bar -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-logo">KPU</div>
+        <div>
+          <h1 class="header-title">SIMAMBIL</h1>
+          <p class="header-subtitle">Dokumentasi & Rekapitulasi Pemilu</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn-header" onclick="openSettingsModal()" title="Pengaturan Endpoint API">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <div class="online-indicator">
+          <span class="pulse-dot"></span>
+          <span id="connStatus">ONLINE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Banner Peringatan jika URL GAS belum diatur -->
+    <div id="configNoticeBanner" class="config-banner" style="display: none;">
+      <span>⚠️ Endpoint GAS Web App belum diatur.</span>
+      <button class="config-banner-btn" onclick="openSettingsModal()">Atur Sekarang</button>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW PANEL 1: KAMERA & UPLOAD DOKUMEN                                     -->
+    <!-- ========================================================================= -->
+    <main id="cameraPanel" class="view-panel active">
+      
+      <!-- Card 1: Metadata & Filter Wilayah Bertingkat -->
+      <section class="card">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          1. Metadata & Wilayah
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="selectJenisFile">Jenis Berkas Dokumen</label>
+          <select id="selectJenisFile" class="form-select" onchange="updateGeneratedFilename()">
+            <option value="Model C-Plano">Model C-Plano</option>
+            <option value="Model D-Plano">Model D-Plano</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="selectLembaga">Jenis Pemilihan / Lembaga</label>
+          <select id="selectLembaga" class="form-select" onchange="updateGeneratedFilename()">
+            <option value="PPWP">Presiden dan Wakil Presiden (PPWP)</option>
+            <option value="DPR-RI">DPR RI (DPR-RI)</option>
+            <option value="DPD-RI">DPD RI (DPD-RI)</option>
+            <option value="DPRD-PROV">DPRD Provinsi (DPRD-PROV)</option>
+            <option value="DPRD-KAB">DPRD Kabupaten / Kota (DPRD-KAB)</option>
+            <option value="PILGUB">Gubernur dan Wakil Gubernur (PILGUB)</option>
+            <option value="PILBUP">Bupati dan Wakil Bupati (PILBUP)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="selectKecamatan">Kecamatan</label>
+          <select id="selectKecamatan" class="form-select" onchange="onKecamatanChanged()">
+            <option value="">-- Pilih Kecamatan --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="selectDesa">Desa / Kelurahan</label>
+          <select id="selectDesa" class="form-select" onchange="onDesaChanged()" disabled>
+            <option value="">-- Pilih Kecamatan Terlebih Dahulu --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="selectTPS">Nomor TPS</label>
+          <select id="selectTPS" class="form-select" onchange="updateGeneratedFilename()" disabled>
+            <option value="">-- Pilih Desa Terlebih Dahulu --</option>
+          </select>
+        </div>
+
+        <!-- Live File Name Preview Sesuai SOT 06-BUSINESS-RULES.md -->
+        <div class="filename-preview-box">
+          <div class="filename-title">Standar Nama Berkas Otomatis:</div>
+          <div id="previewFilename" class="filename-text">Model C-PLANO_PPWP_ASPARAGA_KARYA-INDAH_001.pdf</div>
+        </div>
+      </section>
+
+      <!-- Card 2: Workspace Slot Halaman (1 - 20) -->
+      <section class="card" style="margin-bottom: 80px;">
+        <div class="page-grid-header">
+          <div class="card-title" style="margin-bottom: 0;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            2. Slot Foto Halaman
+          </div>
+          <span id="pageCountBadge" class="page-count-badge">0 / 20 Terisi</span>
+        </div>
+        
+        <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+          Ketuk slot nomor halaman untuk memotret dokumen. Minimal 1 halaman, maksimal 20 halaman.
+        </p>
+
+        <!-- 20 Grid Slots Container -->
+        <div id="pageSlotsGrid" class="page-slots-grid">
+          <!-- Diisi dinamis oleh app.js -->
+        </div>
+      </section>
+
+      <!-- Sticky Action Bar Bawah -->
+      <div class="sticky-action-bar">
+        <button id="btnResetPages" class="btn btn-secondary" onclick="confirmResetPages()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"></polyline>
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+          </svg>
+          Reset
+        </button>
+        <button id="btnProcessUpload" class="btn btn-primary" onclick="startRenderAndUpload()" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span id="btnProcessLabel">Render & Simpan PDF</span>
+        </button>
+      </div>
+
+    </main>
+
+    <!-- ========================================================================= -->
+    <!-- VIEW PANEL 2: REKAPITULASI & MONITORING PROGRES WILAYAH                   -->
+    <!-- ========================================================================= -->
+    <div id="rekapPanel" class="view-panel">
+      <!-- Card Filter Monitoring -->
+      <div class="card">
+        <div class="card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          </svg>
+          Filter Monitoring Wilayah
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="filterRekapKecamatan">Kecamatan</label>
+          <select id="filterRekapKecamatan" class="form-select" onchange="onRekapKecamatanChange()">
+            <option value="">-- Semua Kecamatan (19 Kecamatan) --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="filterRekapDesa">Desa / Kelurahan</label>
+          <select id="filterRekapDesa" class="form-select" onchange="loadRekapData()">
+            <option value="">-- Semua Desa --</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn btn-primary" style="flex: 1; padding: 8px 12px; font-size: 12px;" onclick="loadRekapData()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            Segarkan Data
+          </button>
+        </div>
+      </div>
+
+      <!-- Summary Cards KPI -->
+      <div class="summary-cards-grid">
+        <div class="stat-card total" onclick="filterRekapStatus('ALL')">
+          <span id="statTotalTPS" class="stat-number">0</span>
+          <span class="stat-label">Total TPS</span>
+        </div>
+        <div class="stat-card lengkap" onclick="filterRekapStatus('LENGKAP')">
+          <span id="statLengkap" class="stat-number">0</span>
+          <span class="stat-label">🟢 Lengkap (7/7)</span>
+        </div>
+        <div class="stat-card belum" onclick="filterRekapStatus('BELUM LENGKAP')">
+          <span id="statBelumLengkap" class="stat-number">0</span>
+          <span class="stat-label">🟡 Belum Lengkap</span>
+        </div>
+        <div class="stat-card kosong" onclick="filterRekapStatus('KOSONG')">
+          <span id="statKosong" class="stat-number">0</span>
+          <span class="stat-label">🔴 Kosong / Pending</span>
+        </div>
+      </div>
+
+      <!-- Quick Status Filter Bar -->
+      <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px;">
+        <button id="btnFilterAll" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="filterRekapStatus('ALL')">Semua</button>
+        <button id="btnFilterKosong" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-red);" onclick="filterRekapStatus('KOSONG')">🔴 Kosong</button>
+        <button id="btnFilterBelum" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-yellow);" onclick="filterRekapStatus('BELUM LENGKAP')">🟡 Belum Lengkap</button>
+        <button id="btnFilterLengkap" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; color: var(--status-green);" onclick="filterRekapStatus('LENGKAP')">🟢 Lengkap</button>
+      </div>
+
+      <!-- Daftar TPS Card List -->
+      <div class="card" style="padding: 12px; margin-bottom: 80px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-size: 12px; font-weight: 700; color: #475569;" id="rekapCountLabel">Menampilkan 0 TPS</span>
+          <input type="text" id="rekapSearchInput" placeholder="Cari TPS/Desa..." onkeyup="onRekapSearch()" style="padding: 4px 8px; font-size: 11px; border: 1px solid var(--border-color); border-radius: 4px; width: 130px;">
+        </div>
+        <div id="rekapListContainer" style="max-height: 480px; overflow-y: auto;">
+          <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;">
+            Memuat data monitoring TPS...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- BOTTOM NAVIGATION BAR                                                     -->
+    <!-- ========================================================================= -->
+    <nav class="bottom-nav">
+      <div id="navCamera" class="nav-item active" onclick="switchTab('camera')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+        <span>Kamera & Upload</span>
+      </div>
+      <div id="navRekap" class="nav-item" onclick="switchTab('rekap')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        <span>Rekap Monitoring</span>
+      </div>
+    </nav>
+
+    <!-- ========================================================================= -->
+    <!-- CAMERA MODAL VIEWPORT                                                     -->
+    <!-- ========================================================================= -->
+    <div id="cameraModal" class="camera-modal">
+      <div class="camera-header">
+        <span id="cameraSlotTitle" class="camera-title">Halaman 1</span>
+        <div style="display: flex; gap: 8px;">
+          <button class="camera-action-btn" onclick="toggleCameraFacing()" title="Ganti Kamera">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 10c0-4.418-3.582-8-8-8s-8 3.582-8 8c0 2.21 1.79 4 4 4h2"></path>
+              <polyline points="7 14 10 14 10 11"></polyline>
+              <path d="M4 14c0 4.418 3.582 8 8 8s8-3.582 8-8c0-2.21-1.79-4-4-4h-2"></path>
+              <polyline points="17 10 14 10 14 13"></polyline>
+            </svg>
+          </button>
+          <button class="camera-close-btn" onclick="closeCameraModal()">&times;</button>
+        </div>
+      </div>
+
+      <div class="camera-viewport">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div class="camera-guide-overlay"></div>
+      </div>
+
+      <div class="camera-footer">
+        <button class="camera-action-btn" onclick="triggerFallbackFile()" title="Ambil dari File / Galeri">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        </button>
+
+        <div class="shutter-btn" onclick="capturePhotoFromVideo()">
+          <div class="shutter-inner"></div>
+        </div>
+
+        <div style="width: 44px;"></div>
+      </div>
+      
+      <input type="file" id="fallbackFileInput" accept="image/*" capture="environment" style="display:none" onchange="handleFallbackFileSelected(event)">
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- PREVIEW & ROTATE MODAL                                                    -->
+    <!-- ========================================================================= -->
+    <div id="previewModal" class="preview-modal">
+      <div style="display: flex; justify-content: space-between; align-items: center; color: white;">
+        <span id="previewModalTitle" style="font-weight: 700; font-size: 14px;">Preview Halaman 1</span>
+        <button class="camera-close-btn" onclick="closePreviewModal()">&times;</button>
+      </div>
+
+      <div class="preview-img-container">
+        <img id="previewModalImage" class="preview-img" src="" alt="Preview Foto">
+      </div>
+
+      <div class="preview-controls">
+        <button class="btn btn-secondary" onclick="rotateCurrentPhoto()" style="flex: 1;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+          Putar 90°
+        </button>
+        <button class="btn btn-danger" onclick="deleteCurrentPhoto()" style="flex: 1;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          Hapus
+        </button>
+        <button class="btn btn-gold" onclick="retakeCurrentPhoto()" style="flex: 1;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          Foto Ulang
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- SETTINGS MODAL (PENGATURAN ENDPOINT API)                                  -->
+    <!-- ========================================================================= -->
+    <div id="settingsModal" class="generic-modal">
+      <div style="display: flex; justify-content: flex-end;">
+        <button class="camera-close-btn" onclick="closeSettingsModal()">&times;</button>
+      </div>
+
+      <div class="dialog-box">
+        <h3 style="font-size: 16px; font-weight: 700; color: var(--kpu-maroon); margin-bottom: 8px;">
+          ⚙️ Pengaturan Endpoint GAS
+        </h3>
+        <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 14px;">
+          Masukkan URL Web App hasil Deploy Google Apps Script untuk menghubungkan frontend Vercel dengan database Google Sheets & Drive.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label" for="inputGasUrl">Google Apps Script Web App URL</label>
+          <input type="url" id="inputGasUrl" class="form-input" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+          <button class="btn btn-secondary" onclick="testGasConnection()" style="flex: 1;">
+            Uji Koneksi
+          </button>
+          <button class="btn btn-primary" onclick="saveGasUrl()" style="flex: 1;">
+            Simpan URL
+          </button>
+        </div>
+        <div id="settingsTestStatus" style="font-size: 11px; margin-top: 8px; text-align: center;"></div>
+      </div>
+
+      <div></div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- LOADING & PROGRESS OVERLAY                                                -->
+    <!-- ========================================================================= -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner"></div>
+      <div id="loadingTitle" class="loading-title">Memproses Berkas...</div>
+      <div id="loadingDesc" class="loading-desc">Harap tunggu sebentar</div>
+      <div class="progress-bar-container">
+        <div id="progressBarFill" class="progress-bar-fill"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Client Configuration & Application Logic -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

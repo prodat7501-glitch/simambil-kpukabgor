@@ -1,0 +1,19 @@
+{
+  "name": "SIMAMBIL - Dokumentasi Kamera Pemilu",
+  "short_name": "SIMAMBIL",
+  "description": "Aplikasi PWA Dokumentasi & Rekapitulasi Berkas C-Plano / D-Plano Berbasis Vercel & Google Apps Script",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#800000",
+  "theme_color": "#800000",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%23800000'/%3E%3Ccircle cx='256' cy='256' r='140' fill='none' stroke='%23D4AF37' stroke-width='24'/%3E%3Cpath d='M256 160v192M160 256h192' stroke='%23FFFFFF' stroke-width='28' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

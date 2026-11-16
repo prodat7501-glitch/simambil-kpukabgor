@@ -1,0 +1,13 @@
+{
+  "name": "simambil-pwa",
+  "version": "2.0.0",
+  "description": "SIMAMBIL - Dokumentasi Kamera Pemilu PWA (Vercel Edition)",
+  "private": true,
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve ."
+  },
+  "keywords": ["pwa", "pemilu", "kamera", "pdf", "vercel", "gas"],
+  "author": "SIMAMBIL Team",
+  "license": "MIT"
+}
