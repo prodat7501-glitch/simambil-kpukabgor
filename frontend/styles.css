@@ -68,6 +68,13 @@ body {
   gap: 10px;
 }
 
+.header-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.3));
+}
+
 .header-logo {
   width: 34px;
   height: 34px;
