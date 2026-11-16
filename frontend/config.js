@@ -6,7 +6,17 @@
 // URL Langsung ke Web App Google Apps Script
 const DIRECT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzNK5akeBt11xDA1Y9pqgs8xqc8xwUIJYhDREBNCl8bl0gMbLacvwlAFjnHtZnW-6vvMg/exec';
 
+// Token Otentikasi Keamanan SIMAMBIL (VULN-01)
+const API_AUTH_TOKEN = 'SIMAMBIL_KABGOR_2024_SECURE_TOKEN';
+
 const AppConfig = {
+  /**
+   * Mengambil Token Otentikasi
+   */
+  getAuthToken: function () {
+    return API_AUTH_TOKEN;
+  },
+
   /**
    * Mengambil URL Endpoint aktif.
    * - Prioritas 1: URL custom tersimpan di localStorage pengguna

@@ -23,6 +23,34 @@ const SHEETS = {
 const TARGET_DRIVE_FOLDER_ID = '1qNJXHcGDAyxZkHwm63tptp85iaNRpdSI';
 const APP_ROOT_FOLDER_NAME = 'SIMAMBIL_DOKUMEN_PEMILU';
 
+// Token Otentikasi API Keamanan SIMAMBIL (VULN-01)
+const API_AUTH_TOKEN = 'SIMAMBIL_KABGOR_2024_SECURE_TOKEN';
+
+/**
+ * Validasi otentikasi token untuk akses API SIMAMBIL (VULN-01)
+ */
+function isAuthorized(e, payload) {
+  const configuredToken = PropertiesService.getScriptProperties().getProperty('API_AUTH_TOKEN') || API_AUTH_TOKEN;
+  
+  // Periksa token dari query parameter atau payload body
+  const tokenFromParam = (e && e.parameter && (e.parameter.token || e.parameter.apiKey)) ? String(e.parameter.token || e.parameter.apiKey).trim() : '';
+  const tokenFromBody = (payload && (payload.token || payload.apiKey)) ? String(payload.token || payload.apiKey).trim() : '';
+  
+  return tokenFromParam === configuredToken || tokenFromBody === configuredToken;
+}
+
+/**
+ * Helper untuk sanitasi anti-formula / CSV injection di Google Spreadsheet (CWE-1236 / VULN-02)
+ */
+function escapeSpreadsheetFormula(val) {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (/^[=\+\-@\t\r]/.test(s)) {
+    return "'" + s;
+  }
+  return s;
+}
+
 /**
  * ==============================================================================
  * HTTP GET ROUTER (REST API)
@@ -34,11 +62,25 @@ function doGet(e) {
     const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : '';
 
     if (action === 'getMasterData') {
+      if (!isAuthorized(e)) {
+        return createJsonResponse({
+          status: 'error',
+          code: 403,
+          message: 'Akses Ditolak: Token otentikasi tidak valid atau belum disertakan.'
+        });
+      }
       const data = getInitialMasterData();
       return createJsonResponse(data);
     }
 
     if (action === 'getMonitoringSummary') {
+      if (!isAuthorized(e)) {
+        return createJsonResponse({
+          status: 'error',
+          code: 403,
+          message: 'Akses Ditolak: Token otentikasi tidak valid atau belum disertakan.'
+        });
+      }
       const filterKec = e.parameter.kecamatan || '';
       const filterDesa = e.parameter.desa || '';
       const data = getMonitoringSummary(filterKec, filterDesa);
@@ -48,14 +90,10 @@ function doGet(e) {
     // Default info status jika endpoint dibuka langsung di browser
     return createJsonResponse({
       status: 'success',
-      app: 'SIMAMBIL - Dokumentasi Kamera Pemilu REST API',
-      version: '2.0.0',
-      message: 'API aktif dan siap melayani permintaan frontend Vercel.',
-      endpoints: [
-        'GET ?action=getMasterData',
-        'GET ?action=getMonitoringSummary&kecamatan=[KEC]&desa=[DESA]',
-        'POST (uploadDocument payload)'
-      ]
+      app: 'SIMAMBIL - Dokumentasi Kamera Pemilu REST API (Secured)',
+      version: '2.1.0',
+      message: 'API aktif. Seluruh endpoint operasional dilindungi token otentikasi resmi KPU.',
+      authenticated: isAuthorized(e)
     });
 
   } catch (err) {
@@ -88,6 +126,15 @@ function doPost(e) {
       return createJsonResponse({
         status: 'error',
         message: 'Format JSON payload tidak valid: ' + parseErr.message
+      });
+    }
+
+    // Validasi Keamanan Token (VULN-01)
+    if (!isAuthorized(e, payload)) {
+      return createJsonResponse({
+        status: 'error',
+        code: 403,
+        message: 'Akses Ditolak: Token otentikasi tidak valid atau belum disertakan.'
       });
     }
 
@@ -248,12 +295,40 @@ function uploadCompiledDocument(payload) {
     // [JENIS_FILE]_[KODE_LEMBAGA]_[KECAMATAN]_[DESA]_[TPS].pdf
     const standardizedFileName = formatStandardFileName(jenisFile, lembaga, kecamatan, desa, tps);
 
-    // 2. Decode Base64 Data
+    // 2. Validasi Batasan Ukuran Berkas & Magic Bytes PDF (VULN-04 & Ketetapan Khusus: Max 1 MB jika <= 3 Hal, Max 5 MB jika > 3 Hal)
+    const isThreePages = totalHalaman <= 3;
+    const maxAllowedBytes = isThreePages ? (1 * 1024 * 1024) : (5 * 1024 * 1024);
+    const maxMbLabel = isThreePages ? '1 MB' : '5 MB';
+
     let rawBase64 = payload.base64Data;
     if (rawBase64.indexOf(',') > -1) {
       rawBase64 = rawBase64.split(',')[1];
     }
+
+    // Cek estimasi ukuran string base64 awal sebelum alokasi memori decode
+    const estimatedBytes = Math.round((rawBase64.length * 3) / 4);
+    if (estimatedBytes > maxAllowedBytes * 1.15) {
+      const estimatedMb = (estimatedBytes / (1024 * 1024)).toFixed(2);
+      throw new Error('Ukuran berkas (' + estimatedMb + ' MB) melebihi batas kuota ' + maxMbLabel + ' untuk dokumen ' + totalHalaman + ' halaman.');
+    }
+
     const decodedBytes = Utilities.base64Decode(rawBase64);
+    const actualBytes = decodedBytes.length;
+
+    if (actualBytes > maxAllowedBytes) {
+      const actualMb = (actualBytes / (1024 * 1024)).toFixed(2);
+      throw new Error('Ukuran berkas asli (' + actualMb + ' MB) melebihi batas kuota ' + maxMbLabel + ' untuk dokumen ' + totalHalaman + ' halaman.');
+    }
+
+    // Validasi Magic Bytes Header PDF (%PDF- / hex 25 50 44 46)
+    if (actualBytes < 4 ||
+        decodedBytes[0] !== 0x25 || // '%'
+        decodedBytes[1] !== 0x50 || // 'P'
+        decodedBytes[2] !== 0x44 || // 'D'
+        decodedBytes[3] !== 0x46) { // 'F'
+      throw new Error('Validasi Keamanan Gagal: Berkas yang diunggah harus berformat PDF resmi (%PDF-).');
+    }
+
     const mimeType = payload.mimeType || 'application/pdf';
     const blob = Utilities.newBlob(decodedBytes, mimeType, standardizedFileName);
 
@@ -628,19 +703,19 @@ function logUploadedDocument(item) {
     }
 
     sheet.appendRow([
-      item.timestamp,
-      item.fileName,
-      item.jenisFile,
-      item.lembaga,
-      item.kecamatan,
-      item.desa,
-      item.tps,
+      escapeSpreadsheetFormula(item.timestamp),
+      escapeSpreadsheetFormula(item.fileName),
+      escapeSpreadsheetFormula(item.jenisFile),
+      escapeSpreadsheetFormula(item.lembaga),
+      escapeSpreadsheetFormula(item.kecamatan),
+      escapeSpreadsheetFormula(item.desa),
+      escapeSpreadsheetFormula(item.tps),
       item.totalHalaman,
-      item.fileId,
-      item.fileUrl,
-      item.operatorNama || '-',
-      item.operatorNip || '-',
-      item.operatorJabatan || '-'
+      escapeSpreadsheetFormula(item.fileId),
+      escapeSpreadsheetFormula(item.fileUrl),
+      escapeSpreadsheetFormula(item.operatorNama || '-'),
+      escapeSpreadsheetFormula(item.operatorNip || '-'),
+      escapeSpreadsheetFormula(item.operatorJabatan || '-')
     ]);
   } catch (err) {
     Logger.log('Error logUploadedDocument: ' + err.message);

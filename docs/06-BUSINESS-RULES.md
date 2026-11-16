@@ -21,9 +21,18 @@
 - Slot halaman yang tidak diambil/kosong akan diabaikan (tidak disisipkan halaman kosong ke PDF).
 - **Validasi Unggah Belum Lengkap:** Jika operator mengunggah dokumen dengan jumlah halaman kurang dari target (misal DPR RI hanya 17 dari 20 halaman), sistem menampilkan konfirmasi khusus yang mencantumkan jumlah halaman yang belum lengkap/hilang sebelum berkas diproses.
 
-### 3. Batasan Teknis & Kompresi (Payload Optimization)
-- Setiap foto yang diambil dari kamera beresolusi tinggi wajib dikompresi di sisi browser (client-side canvas) ke resolusi maksimal 1600x1200 dengan kualitas JPEG 0.7 - 0.8 sebelum dikonversi ke PDF.
-- File PDF gabungan berukuran di bawah 15 MB agar upload via HTTP REST API berjalan stabil tanpa timeout.
+### 3. Batasan Teknis, Kuota Ukuran & Pengamanan Berkas
+- **Kompresi Resolusi Dinamis:**
+  - Untuk lembaga 3 halaman: Resolusi canvas maksimal 1500x1125, kualitas JPEG 0.72.
+  - Untuk lembaga 20 halaman: Resolusi canvas maksimal 1280x960, kualitas JPEG 0.66.
+- **Strict File Size Quotas (Aturan Batas Ukuran File):**
+  - **Maksimal 1 MB:** Untuk berkas dokumen 3 halaman (PPWP, DPD RI, PILGUB, PILBUP).
+  - **Maksimal 5 MB:** Untuk berkas dokumen 20 halaman (DPR RI, DPRD Provinsi, DPRD Kabupaten/Kota).
+  - Sistem melakukan validasi ganda (*client-side* sebelum upload dan *server-side* pada backend Google Apps Script). Pengunggahan berkas yang melampaui kuota akan ditolak demi mencegah pemborosan storage dan memory buffer overflow.
+- **Verifikasi Integritas & Magic Bytes:** Seluruh berkas yang diterima wajib berformat PDF asli dengan header byte `%PDF-` (hex `25 50 44 46`).
+- **Otentikasi & Proteksi Spreadsheet:**
+  - Seluruh komunikasi API dilindungi dengan token otentikasi resmi.
+  - Seluruh data teks yang dicatat ke Google Sheets disanitasi dari karakter awalan formula (`=`, `+`, `-`, `@`) guna mencegah *Spreadsheet Formula Injection*.
 
 ### 4. Aturan Rekapitulasi, Target Halaman & Deteksi Wilayah Pending
 1. **Daftar Target Kelengkapan Halaman per Jenis Pemilihan / Lembaga:**

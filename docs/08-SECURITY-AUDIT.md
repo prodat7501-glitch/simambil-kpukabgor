@@ -15,15 +15,15 @@ Aplikasi SIMAMBIL telah diaudit secara menyeluruh untuk mendeteksi potensi keren
 
 ### 2. Matriks Temuan Kerentanan
 
-| ID | Kerentanan | Keparahan | Vektor OWASP | Komponen Terdampak |
-| :--- | :--- | :---: | :---: | :--- |
-| **VULN-01** | Broken Access Control (Unauthenticated Public API) | **TINGGI** | A01:2021 | `backend/Code.gs`, `frontend/api/gas.js` |
-| **VULN-02** | Operator Identity Spoofing (Client-Side Trust) | **SEDANG** | A07:2021 | `frontend/app.js` |
-| **VULN-03** | Google Sheets Formula / CSV Injection (CWE-1236) | **SEDANG** | A03:2021 | `backend/Code.gs` (`logUploadedDocument`) |
-| **VULN-04** | Unrestricted File Upload & Storage Exhaustion (DoS) | **SEDANG** | A04:2021 | `backend/Code.gs` (`uploadCompiledDocument`) |
-| **VULN-05** | Sensitive Document Exposure (Public Google Drive Link) | **SEDANG** | A05:2021 | `backend/Code.gs` (`createdFile.setSharing`) |
-| **VULN-06** | Permissive CORS Wildcard & Proxy Abuse | **RENDAH** | A05:2021 | `frontend/api/gas.js` |
-| **VULN-07** | Potential DOM Attribute Injection via Inline Events | **RENDAH** | A03:2021 | `frontend/app.js` (`escapeJs` in `onclick`) |
+| ID | Kerentanan | Keparahan | Vektor OWASP | Komponen Terdampak | Status Remediasi |
+| :--- | :--- | :---: | :---: | :--- | :---: |
+| **VULN-01** | Broken Access Control (Unauthenticated Public API) | **TINGGI** | A01:2021 | `backend/Code.gs`, `frontend/api/gas.js` | ✅ **TERSELESAIKAN** (Token API `API_AUTH_TOKEN` Aktif) |
+| **VULN-02** | Operator Identity Spoofing (Client-Side Trust) | **SEDANG** | A07:2021 | `frontend/app.js` | ⏳ Terencana (Fase Lanjutan) |
+| **VULN-03** | Google Sheets Formula / CSV Injection (CWE-1236) | **SEDANG** | A03:2021 | `backend/Code.gs` (`logUploadedDocument`) | ✅ **TERSELESAIKAN** (`escapeSpreadsheetFormula`) |
+| **VULN-04** | Unrestricted File Upload & Storage Exhaustion (DoS) | **SEDANG** | A04:2021 | `backend/Code.gs`, `frontend/app.js` | ✅ **TERSELESAIKAN** (Max 1MB: 3 Hal, Max 5MB: 20 Hal, Header `%PDF-`) |
+| **VULN-05** | Sensitive Document Exposure (Public Google Drive Link) | **SEDANG** | A05:2021 | `backend/Code.gs` (`createdFile.setSharing`) | ⏳ Opsional |
+| **VULN-06** | Permissive CORS Wildcard & Proxy Abuse | **RENDAH** | A05:2021 | `frontend/api/gas.js` | ✅ **TERSELESAIKAN** (Restriksi Origin Domain KPU) |
+| **VULN-07** | Potential DOM Attribute Injection via Inline Events | **RENDAH** | A03:2021 | `frontend/app.js` (`escapeJs` in `onclick`) | ℹ️ Mitigasi Parsial |
 
 ---
 

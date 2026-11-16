@@ -385,11 +385,13 @@ function syncPagesStateWithLembaga() {
 
 async function loadMasterData() {
   const apiUrl = AppConfig.getApiUrl();
+  const authToken = AppConfig.getAuthToken ? AppConfig.getAuthToken() : '';
+  const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
 
   // 1. Coba endpoint utama (Proxy /api/gas jika di Vercel atau Direct URL)
   if (apiUrl) {
     try {
-      const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}action=getMasterData`;
+      const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}action=getMasterData${tokenQuery}`;
       const res = await fetch(endpoint, { redirect: 'follow' });
       const json = await res.json();
       if (json && json.status === 'success') {
@@ -404,7 +406,7 @@ async function loadMasterData() {
   // 2. Fallback ke Direct URL jika endpoint utama adalah proxy
   if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
     try {
-      const directEndpoint = `${DIRECT_GAS_URL}?action=getMasterData`;
+      const directEndpoint = `${DIRECT_GAS_URL}?action=getMasterData${tokenQuery}`;
       const res = await fetch(directEndpoint, { redirect: 'follow' });
       const json = await res.json();
       if (json && json.status === 'success') {
@@ -879,11 +881,17 @@ function capturePhotoFromVideo() {
 
 /**
  * Kompresi Resolusi Canvas Client-Side
- * Batas Maksimal: 1600x1200, Kualitas JPEG 0.75
+ * Optimasi kuota berkas:
+ * - 3 Halaman: Max 1500x1125, Kualitas JPEG 0.72 (Total PDF aman < 1 MB)
+ * - 20 Halaman: Max 1280x960, Kualitas JPEG 0.66 (Total PDF aman < 5 MB)
  */
 function compressImageCanvas(img, rotationDegree = 0) {
-  const MAX_WIDTH = 1600;
-  const MAX_HEIGHT = 1200;
+  const currentTargetPages = typeof getTargetPagesForCurrentLembaga === 'function' ? getTargetPagesForCurrentLembaga() : 3;
+  const isMultiPage20 = currentTargetPages > 3;
+
+  const MAX_WIDTH = isMultiPage20 ? 1280 : 1500;
+  const MAX_HEIGHT = isMultiPage20 ? 960 : 1125;
+  const jpegQuality = isMultiPage20 ? 0.66 : 0.72;
 
   let width = img.naturalWidth || img.width;
   let height = img.naturalHeight || img.height;
@@ -922,7 +930,7 @@ function compressImageCanvas(img, rotationDegree = 0) {
   }
   ctx.restore();
 
-  return canvas.toDataURL('image/jpeg', 0.75);
+  return canvas.toDataURL('image/jpeg', jpegQuality);
 }
 
 /**
@@ -1106,8 +1114,30 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
     // 2. Konversi ke Base64 Data URI
     const pdfBase64 = doc.output('datauristring');
 
+    // 2a. Validasi Batasan Ukuran Berkas Client-Side (Max 1 MB jika <= 3 Halaman, Max 5 MB jika > 3 Halaman)
+    const targetPages = TARGET_HALAMAN[lembaga] || 3;
+    const isThreePages = targetPages <= 3;
+    const maxAllowedBytes = isThreePages ? (1 * 1024 * 1024) : (5 * 1024 * 1024);
+    const maxMbLabel = isThreePages ? '1 MB' : '5 MB';
+
+    const base64Clean = pdfBase64.indexOf(',') > -1 ? pdfBase64.split(',')[1] : pdfBase64;
+    const actualSizeBytes = Math.round((base64Clean.length * 3) / 4);
+
+    if (actualSizeBytes > maxAllowedBytes) {
+      const actualMb = (actualSizeBytes / (1024 * 1024)).toFixed(2);
+      hideLoading();
+      showAppDialog({
+        title: 'Ukuran Berkas Melebihi Kuota',
+        type: 'error',
+        message: `Ukuran dokumen PDF yang dihasilkan adalah <strong>${actualMb} MB</strong>.<br><br>Batas kuota maksimal untuk lembaga <strong>${escapeHtml(lembaga)}</strong> (${targetPages} Halaman) adalah <strong>${maxMbLabel}</strong>.<br><br>Silakan periksa kembali foto dokumen atau kurangi resolusi sebelum mengunggah.`,
+        confirmText: 'Kembali'
+      });
+      return;
+    }
+
     const payload = {
       action: 'uploadDocument',
+      token: AppConfig.getAuthToken ? AppConfig.getAuthToken() : '',
       fileName: fileName,
       mimeType: 'application/pdf',
       base64Data: pdfBase64,
@@ -1248,6 +1278,11 @@ async function loadRekapData() {
     kecamatan: filterKec,
     desa: filterDesa
   });
+
+  const authToken = AppConfig.getAuthToken ? AppConfig.getAuthToken() : '';
+  if (authToken) {
+    qParams.append('token', authToken);
+  }
 
   // 1. Coba endpoint utama
   if (apiUrl) {
