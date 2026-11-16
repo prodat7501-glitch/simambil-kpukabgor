@@ -16,14 +16,16 @@
   - Tab 2: **Rekap & Monitoring** (Icon Chart/Clipboard)
 - **Sticky Bottom Action Bar:** Tombol besar "Ambil Foto" dan tombol konfirmasi "Render & Simpan (X Halaman)".
 
-### 3. Komponen Spesifik
-- **Selector Wilayah:** Native dropdown / Searchable Dropdown dengan label jelas dan font legible.
-- **Page Grid Selector:** 
-  - Grid 4 kolom x 5 baris (menampung 20 halaman).
-  - State kosong: Kotak abu-abu bertuliskan angka halaman `01`, `02`, dst.
-  - State terisi: Thumbnail mini dari foto + badge centang hijau + tombol aksi (hapus / rotate).
-- **Tabel Rekapitulasi Progres:**
-  - Kartu indikator: Total TPS, Lengkap, Kurang, Kosong.
-  - Tabel matriks ringkas dengan chip warna status per TPS.
-- **Camera Modal / Viewport:** Tombol shutter bundar besar di tengah bawah layar.
-- **Loading Overlay:** Progress bar persentase ("Mengompres foto...", "Menggabungkan dokumen...", "Menyimpan ke Google Drive...").
+### 4. Standar Tampilan Mobile / Android (Professional Enterprise Grade)
+- **Two-Tier Header Structure:**
+  - Baris Atas: Logo KPU + Tipografi resmi "SIMAMBIL" & "KPU KABUPATEN GORONTALO" + Status Koneksi (Online/Offline) + Tombol Pengaturan.
+  - Baris Bawah: Kartu Identitas Operator (Nama, Jabatan: Sekretariat / Komisioner, dan NIP) yang berkontras tinggi, mudah dibaca, dan responsif terhadap sentuhan satu jempol.
+- **In-App Toast & Dialog System (Tanpa `alert()` Bawaan Browser):**
+  - Seluruh notifikasi sukses, peringatan, maupun validasi menggunakan komponen dialog in-app dengan animasi halus, ikon status tematik, dan tipografi rapi, sehingga tidak lagi memunculkan popup abu-abu default browser Android (`...menyatakan [Oke]`).
+- **Form Controls & Micro-Interactions:**
+  - Dropdown select dilengkapi kustom panah chevron dengan padding nyaman.
+  - Ukuran font input standar 14px untuk mencegah zoom otomatis pada browser Android/iOS.
+  - Status fokus menggunakan outline marun lembut (`rgba(128, 0, 0, 0.15)`).
+- **Slot Foto & Bottom Action Bar:**
+  - Slot foto 20 halaman memiliki status kosong dan terisi yang kontras, dengan preview thumbnail jelas dan centang status hijau.
+  - Sticky action bar menggunakan efek glassmorphism (`backdrop-filter: blur(12px)`) dengan tombol simpan & render beraksen marun elegan.

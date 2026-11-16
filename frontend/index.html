@@ -28,29 +28,46 @@
     
     <!-- Top App Bar -->
     <header class="app-header">
-      <div class="header-brand">
-        <img src="logo-kpu.png" alt="Logo KPU" class="header-logo-img" onerror="this.style.display='none'; document.getElementById('textLogo').style.display='flex';">
-        <div id="textLogo" class="header-logo" style="display:none;">KPU</div>
-        <div class="header-text-container">
-          <h1 class="header-org-title">Komisi Pemilihan Umum</h1>
-          <div class="header-org-sub">KABUPATEN GORONTALO</div>
-          <div class="header-app-tag">SIMAMBIL</div>
+      <div class="header-top-row">
+        <div class="header-brand">
+          <img src="logo-kpu.png" alt="Logo KPU" class="header-logo-img" onerror="this.style.display='none'; document.getElementById('textLogo').style.display='flex';">
+          <div id="textLogo" class="header-logo" style="display:none;">KPU</div>
+          <div class="header-text-container">
+            <div class="header-brand-title">SIMAMBIL</div>
+            <div class="header-brand-sub">KPU KABUPATEN GORONTALO</div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <div class="online-indicator" title="Status Jaringan">
+            <span class="pulse-dot"></span>
+            <span id="connStatus">ONLINE</span>
+          </div>
+          <button class="icon-btn-header" onclick="openSettingsModal()" title="Pengaturan Endpoint API">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
         </div>
       </div>
-      <div class="header-actions">
-        <button id="btnOperatorProfile" class="operator-profile-pill" onclick="openOperatorModal(true)" title="Identitas Operator">
-          <span class="operator-avatar-icon">👤</span>
-          <span id="headerOpNameShort" class="operator-name-text">Operator</span>
-        </button>
-        <button class="icon-btn-header" onclick="openSettingsModal()" title="Pengaturan Endpoint API">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+
+      <!-- Dedicated Operator Identity Strip -->
+      <div class="header-operator-strip" onclick="openOperatorModal(true)" role="button" tabindex="0" title="Klik untuk mengubah profil operator">
+        <div class="op-strip-avatar">
+          <span>👤</span>
+        </div>
+        <div class="op-strip-content">
+          <div class="op-strip-top">
+            <span id="headerOpName" class="op-strip-name">Operator</span>
+            <span id="headerOpRole" class="op-strip-role-badge">Sekretariat</span>
+          </div>
+          <div id="headerOpNip" class="op-strip-nip">NIP: -</div>
+        </div>
+        <div class="op-strip-action">
+          <span class="op-strip-edit-text">Ubah</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
-        </button>
-        <div class="online-indicator">
-          <span class="pulse-dot"></span>
-          <span id="connStatus">ONLINE</span>
         </div>
       </div>
     </header>
@@ -445,6 +462,28 @@
       <div class="progress-bar-container">
         <div id="progressBarFill" class="progress-bar-fill"></div>
       </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- CUSTOM IN-APP DIALOG & TOAST (PROFESSIONAL ANDROID EXPERIENCE)            -->
+    <!-- ========================================================================= -->
+    <div id="appDialogModal" class="generic-modal app-dialog-modal">
+      <div class="app-dialog-card">
+        <div class="app-dialog-icon-wrapper" id="appDialogIconWrapper">
+          <span id="appDialogIcon">✓</span>
+        </div>
+        <h3 id="appDialogTitle" class="app-dialog-title">Informasi</h3>
+        <div id="appDialogMessage" class="app-dialog-message">Pesan notifikasi</div>
+        <div class="app-dialog-actions" id="appDialogActions">
+          <button id="appDialogConfirmBtn" class="btn btn-primary" style="width: 100%;">Mengerti</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLOATING TOAST NOTIFICATION -->
+    <div id="appToast" class="app-toast">
+      <span id="appToastIcon">ℹ️</span>
+      <span id="appToastText">Notifikasi</span>
     </div>
 
   </div>

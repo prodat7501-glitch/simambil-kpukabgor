@@ -44,15 +44,120 @@ function saveOperatorProfile(data) {
   updateOperatorHeaderUI();
 }
 
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * In-App Dialog & Toast Notification System
+ * Replaces ugly browser native alert() with sleek KPU-styled mobile dialogs
+ */
+let appToastTimer = null;
+
+function showAppToast(message, type = 'info', duration = 3000) {
+  const toast = document.getElementById('appToast');
+  const icon = document.getElementById('appToastIcon');
+  const text = document.getElementById('appToastText');
+  if (!toast || !text) return;
+
+  if (appToastTimer) clearTimeout(appToastTimer);
+
+  text.textContent = message;
+  toast.className = 'app-toast active ' + type;
+
+  if (type === 'success') {
+    if (icon) icon.textContent = '✓';
+  } else if (type === 'error') {
+    if (icon) icon.textContent = '✕';
+  } else {
+    if (icon) icon.textContent = 'ℹ️';
+  }
+
+  appToastTimer = setTimeout(() => {
+    toast.classList.remove('active');
+  }, duration);
+}
+
+function showAppDialog({ title, message, type = 'info', confirmText = 'Mengerti', cancelText = null, onConfirm = null, onCancel = null }) {
+  const modal = document.getElementById('appDialogModal');
+  const titleEl = document.getElementById('appDialogTitle');
+  const msgEl = document.getElementById('appDialogMessage');
+  const iconWrapper = document.getElementById('appDialogIconWrapper');
+  const iconEl = document.getElementById('appDialogIcon');
+  const actionsEl = document.getElementById('appDialogActions');
+
+  if (!modal) {
+    if (onConfirm) onConfirm();
+    return;
+  }
+
+  if (titleEl) titleEl.textContent = title || 'Informasi';
+  if (msgEl) msgEl.innerHTML = message || '';
+
+  if (iconWrapper && iconEl) {
+    iconWrapper.className = 'app-dialog-icon-wrapper ' + type;
+    if (type === 'success') {
+      iconEl.textContent = '✓';
+    } else if (type === 'error') {
+      iconEl.textContent = '✕';
+    } else {
+      iconEl.textContent = '!';
+    }
+  }
+
+  if (actionsEl) {
+    actionsEl.innerHTML = '';
+    if (cancelText) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn btn-secondary';
+      cancelBtn.style.flex = '1';
+      cancelBtn.textContent = cancelText;
+      cancelBtn.onclick = () => {
+        modal.classList.remove('active');
+        if (onCancel) onCancel();
+      };
+      actionsEl.appendChild(cancelBtn);
+    }
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn btn-primary';
+    confirmBtn.style.flex = '1';
+    confirmBtn.textContent = confirmText;
+    confirmBtn.onclick = () => {
+      modal.classList.remove('active');
+      if (onConfirm) onConfirm();
+    };
+    actionsEl.appendChild(confirmBtn);
+  }
+
+  modal.classList.add('active');
+}
+
 function updateOperatorHeaderUI() {
   const op = getOperatorProfile();
-  const nameEl = document.getElementById('headerOpNameShort');
-  if (nameEl) {
-    if (op && op.nama) {
-      nameEl.textContent = op.nama.split(' ')[0];
-    } else {
-      nameEl.textContent = 'Isi Identitas';
+  const elName = document.getElementById('headerOpName');
+  const elRole = document.getElementById('headerOpRole');
+  const elNip = document.getElementById('headerOpNip');
+
+  if (op && op.nama) {
+    if (elName) elName.textContent = op.nama;
+    if (elRole) {
+      elRole.textContent = op.jabatan || 'Operator';
+      elRole.style.display = 'inline-block';
     }
+    if (elNip) {
+      elNip.textContent = op.nip && op.nip !== '-' ? `NIP: ${op.nip}` : 'Non-NIP';
+    }
+  } else {
+    if (elName) elName.textContent = 'Klik untuk Mengisi Identitas';
+    if (elRole) elRole.style.display = 'none';
+    if (elNip) elNip.textContent = 'Operator Belum Terdaftar';
   }
 }
 
@@ -97,7 +202,7 @@ function closeOperatorModal() {
   const op = getOperatorProfile();
   const validJabatan = op && (op.jabatan === 'Sekretariat' || op.jabatan === 'Komisioner');
   if (!op || !op.nama || !op.nip || !validJabatan) {
-    alert('Harap lengkapi seluruh data identitas operator dan pilih Jabatan (Sekretariat atau Komisioner) terlebih dahulu.');
+    showAppToast('Harap lengkapi identitas dan pilih Jabatan terlebih dahulu.', 'warning');
     return;
   }
   const modal = document.getElementById('operatorModal');
@@ -111,14 +216,21 @@ function handleOperatorFormSubmit(event) {
   const jabatan = (document.getElementById('selectOpJabatan')?.value || '').trim();
 
   if (!nama || !nip || (jabatan !== 'Sekretariat' && jabatan !== 'Komisioner')) {
-    alert('Harap lengkapi semua kolom identitas dan pilih Jabatan (Sekretariat atau Komisioner)!');
+    showAppToast('Harap lengkapi semua kolom dan pilih Jabatan!', 'warning');
     return;
   }
 
   saveOperatorProfile({ nama, nip, jabatan });
-  alert(`Identitas Anda berhasil disimpan:\n${nama}\nNIP: ${nip}\nJabatan: ${jabatan}\n\nSelamat bertugas!`);
+  
   const modal = document.getElementById('operatorModal');
   if (modal) modal.classList.remove('active');
+
+  showAppDialog({
+    title: 'Identitas Berhasil Disimpan',
+    type: 'success',
+    message: `Selamat bertugas di SIMAMBIL!<br><br><strong style="font-size:15px; color:#1E293B;">${escapeHtml(nama)}</strong><br><span style="color:#64748B; font-size:12px;">NIP: ${escapeHtml(nip)} • Jabatan: ${escapeHtml(jabatan)}</span>`,
+    confirmText: 'Mulai Bekerja'
+  });
 }
 
 /**
@@ -146,12 +258,12 @@ function saveGasUrl() {
   const val = (input?.value || '').trim();
 
   if (val && !val.startsWith('https://script.google.com')) {
-    alert('URL Google Apps Script harus diawali dengan https://script.google.com');
+    showAppToast('URL Apps Script harus diawali dengan https://script.google.com', 'error');
     return;
   }
 
   AppConfig.setApiUrl(val);
-  alert('URL Google Apps Script berhasil disimpan!');
+  showAppToast('URL Google Apps Script berhasil disimpan!', 'success');
   closeSettingsModal();
 
   // Muat ulang master data dan monitoring
@@ -505,10 +617,18 @@ function confirmResetPages() {
   const filledCount = pagesState.filter(p => p.dataUrl).length;
   if (filledCount === 0) return;
 
-  if (confirm(`Apakah Anda yakin ingin menghapus seluruh ${filledCount} foto halaman yang sudah diambil?`)) {
-    initPagesState();
-    renderPageSlots();
-  }
+  showAppDialog({
+    title: 'Reset Seluruh Foto?',
+    type: 'warning',
+    message: `Apakah Anda yakin ingin menghapus seluruh <strong>${filledCount} foto halaman</strong> yang sudah diambil?`,
+    confirmText: 'Ya, Reset Semua',
+    cancelText: 'Batal',
+    onConfirm: () => {
+      initPagesState();
+      renderPageSlots();
+      showAppToast('Seluruh foto telah di-reset.', 'info');
+    }
+  });
 }
 
 /**
@@ -726,12 +846,21 @@ function retakeCurrentPhoto() {
 
 function deleteCurrentPhoto() {
   if (activeSlotIndex === null) return;
-  if (confirm(`Hapus foto pada Halaman ${activeSlotIndex + 1}?`)) {
-    pagesState[activeSlotIndex].dataUrl = null;
-    pagesState[activeSlotIndex].rotation = 0;
-    renderPageSlots();
-    closePreviewModal();
-  }
+  const slotNum = activeSlotIndex + 1;
+  showAppDialog({
+    title: 'Hapus Foto Halaman?',
+    type: 'warning',
+    message: `Apakah Anda yakin ingin menghapus foto pada Halaman ${slotNum}? Tindakan ini tidak dapat dibatalkan.`,
+    confirmText: 'Ya, Hapus',
+    cancelText: 'Batal',
+    onConfirm: () => {
+      pagesState[activeSlotIndex].dataUrl = null;
+      pagesState[activeSlotIndex].rotation = 0;
+      renderPageSlots();
+      closePreviewModal();
+      showAppToast(`Foto Halaman ${slotNum} telah dihapus.`, 'info');
+    }
+  });
 }
 
 /**
@@ -744,14 +873,24 @@ async function startRenderAndUpload() {
   const op = getOperatorProfile();
   const validJabatan = op && (op.jabatan === 'Sekretariat' || op.jabatan === 'Komisioner');
   if (!op || !op.nama || !op.nip || !validJabatan) {
-    alert('Harap lengkapi identitas operator dan pilih Jabatan (Sekretariat atau Komisioner) terlebih dahulu.');
-    openOperatorModal(false);
+    showAppDialog({
+      title: 'Identitas Diperlukan',
+      type: 'warning',
+      message: 'Harap lengkapi identitas operator dan pilih Jabatan (Sekretariat atau Komisioner) terlebih dahulu sebelum melakukan upload.',
+      confirmText: 'Lengkapi Sekarang',
+      onConfirm: () => openOperatorModal(false)
+    });
     return;
   }
 
   const filledSlots = pagesState.filter(p => p.dataUrl !== null);
   if (filledSlots.length === 0) {
-    alert('Harap ambil minimal 1 foto halaman dokumen sebelum render.');
+    showAppDialog({
+      title: 'Halaman Masih Kosong',
+      type: 'warning',
+      message: 'Harap ambil minimal 1 foto halaman dokumen sebelum render.',
+      confirmText: 'Mengerti'
+    });
     return;
   }
 
@@ -762,7 +901,12 @@ async function startRenderAndUpload() {
   const tps = document.getElementById('selectTPS')?.value || '';
 
   if (!kecamatan || !desa || !tps) {
-    alert('Harap lengkapi pilihan Kecamatan, Desa, dan Nomor TPS!');
+    showAppDialog({
+      title: 'Wilayah Belum Lengkap',
+      type: 'warning',
+      message: 'Harap lengkapi pilihan Kecamatan, Desa, dan Nomor TPS sebelum menyimpan dokumen.',
+      confirmText: 'Lengkapi Data'
+    });
     return;
   }
 
@@ -881,7 +1025,12 @@ async function startRenderAndUpload() {
 
   } catch (err) {
     hideLoading();
-    alert('Terjadi kesalahan saat memproses upload: ' + err.message);
+    showAppDialog({
+      title: 'Gagal Memproses',
+      type: 'error',
+      message: 'Terjadi kesalahan saat memproses upload: ' + escapeHtml(err.message),
+      confirmText: 'Tutup'
+    });
   }
 }
 
@@ -890,12 +1039,24 @@ function onUploadSuccess(res) {
   hideLoading();
 
   if (res && res.status === 'success') {
-    alert(`BERHASIL!\n\n${res.message}\nBerkas: ${res.fileName}`);
     initPagesState();
     renderPageSlots();
     loadRekapData();
+
+    const driveLink = res.fileUrl ? `<br><br><a href="${res.fileUrl}" target="_blank" style="color:var(--kpu-maroon); font-weight:700; text-decoration:underline;">Buka Berkas di Google Drive</a>` : '';
+    showAppDialog({
+      title: 'Dokumen Berhasil Diunggah!',
+      type: 'success',
+      message: `${escapeHtml(res.message || 'Berkas telah berhasil disimpan ke Google Drive.')}<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || '')}</div>${driveLink}`,
+      confirmText: 'Selesai'
+    });
   } else {
-    alert('Gagal mengunggah berkas: ' + (res.message || 'Kesalahan sistem backend.'));
+    showAppDialog({
+      title: 'Gagal Mengunggah',
+      type: 'error',
+      message: 'Gagal mengunggah berkas: ' + escapeHtml(res?.message || 'Kesalahan sistem backend.'),
+      confirmText: 'Tutup'
+    });
   }
 }
 
