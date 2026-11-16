@@ -383,7 +383,7 @@ function uploadCompiledDocument(payload) {
 
     return {
       status: 'success',
-      message: 'Dokumen berhasil disimpan ke Google Drive',
+      message: 'Dokumen berhasil disimpan',
       fileId: fileId,
       fileUrl: fileUrl,
       fileName: standardizedFileName

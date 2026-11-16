@@ -1347,7 +1347,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
     }
 
     updateProgress(75);
-    showLoading('Mengunggah ke Google Drive...', 'Menyimpan berkas dan mencatat rekap...');
+    showLoading('Mengunggah Dokumen...', 'Menyimpan berkas dan mencatat rekap...');
 
     // 2. Konversi ke Base64 Data URI
     const pdfBase64 = doc.output('datauristring');
@@ -1559,17 +1559,9 @@ function onUploadSuccess(res, meta = {}) {
     // Evaluasi apakah masih ada TPS yang perlu didokumentasikan di desa ini
     const advanceInfo = checkDesaCompletionAndAdvance(kecamatan, desa, currentTps);
 
-    let sessionInfoHtml = '';
-
     if (advanceInfo.allCompleted) {
       // Seluruh TPS di wilayah desa ini telah selesai: reset wilayah ke default
       resetWilayahSelectionToDefault();
-      sessionInfoHtml = `
-        <div style="margin-top: 12px; padding: 10px 12px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; font-size: 11.5px; color: #166534; line-height: 1.4; text-align: left;">
-          🎉 <strong>Seluruh TPS pada Desa ${escapeHtml(desa)} telah selesai dirender &amp; dikirim!</strong><br>
-          Pilihan wilayah pada menu kamera telah otomatis di-reset ke default agar siap untuk wilayah berikutnya.
-        </div>
-      `;
     } else {
       // Pertahankan wilayah Kecamatan dan Desa, otomatis beralih ke TPS berikutnya
       const selectKec = document.getElementById('selectKecamatan');
@@ -1588,19 +1580,12 @@ function onUploadSuccess(res, meta = {}) {
 
       updateGeneratedFilename();
       syncAllPickers();
-
-      sessionInfoHtml = `
-        <div style="margin-top: 12px; padding: 10px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; font-size: 11.5px; color: #1E40AF; line-height: 1.4; text-align: left;">
-          📍 <strong>Sesi Wilayah Dipertahankan:</strong> Kec. ${escapeHtml(kecamatan)}, Desa ${escapeHtml(desa)}.<br>
-          Otomatis beralih ke <strong>TPS ${escapeHtml(advanceInfo.nextTps)}</strong> (Tersisa ${advanceInfo.remainingCount} TPS di desa ini).
-        </div>
-      `;
     }
 
     showAppDialog({
       title: 'Dokumen Berhasil Diunggah!',
       type: 'success',
-      message: `${escapeHtml(res.message || 'Berkas telah berhasil disimpan ke Google Drive.')}<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || meta.fileName || '')}</div>${sessionInfoHtml}<div style="font-size: 11px; color: var(--text-muted); margin-top: 10px; text-align: center;">💡 Pratinjau berkas dapat dilihat melalui menu <strong>Rekap &amp; Pratinjau</strong>.</div>`,
+      message: `Dokumen berhasil disimpan<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || meta.fileName || '')}</div><div style="font-size: 11px; color: var(--text-muted); margin-top: 10px; text-align: center;">💡 Pratinjau berkas dapat dilihat melalui menu <strong>Rekap &amp; Pratinjau</strong>.</div>`,
       confirmText: 'Lanjutkan'
     });
   } else {
