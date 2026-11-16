@@ -1497,7 +1497,7 @@ function renderRekapWilayah() {
         <span>🚨 Terdeteksi ${countPendingKec} Kecamatan (${countPendingTPS} TPS) Belum Selesai Diunggah:</span>
       </div>
       <div style="font-size: 10.5px; color: #881337; margin-top: 2px;">
-        Daftar di bawah langsung terbuka menampilkan Desa dan nomor TPS yang belum difoto tanpa perlu memilih dropdown.
+        Ketuk tanda panah (▾) pada kecamatan untuk membuka rincian desa dan nomor TPS.
       </div>
     `;
     container.appendChild(alertBox);
@@ -1555,13 +1555,13 @@ function renderRekapWilayah() {
           </div>
         </div>
         <div>
-          <span class="arrow-icon" style="font-size: 14px; color: var(--kpu-maroon); font-weight: 800;">${isPending ? '▴' : '▾'}</span>
+          <span class="arrow-icon" style="font-size: 14px; color: var(--kpu-maroon); font-weight: 800;">▾</span>
         </div>
       </div>
       <div class="wilayah-progress-bg">
         <div class="wilayah-progress-fill" style="width: ${k.persenLengkap}%;"></div>
       </div>
-      <div id="${cardId}" class="wilayah-desa-list ${isPending ? 'open' : ''}">
+      <div id="${cardId}" class="wilayah-desa-list">
         ${desaRowsHtml}
       </div>
     `;
