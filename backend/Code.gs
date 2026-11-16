@@ -291,9 +291,13 @@ function uploadCompiledDocument(payload) {
     const opNipRaw = String(op.nip || '').trim().replace(/\s+/g, '');
     const opJabatan = String(op.jabatan || '').trim();
 
-    // Validasi Keamanan NIP Operator (VULN-02: Wajib Angka Murni)
-    if (opNipRaw && !/^\d+$/.test(opNipRaw)) {
-      throw new Error('Validasi Identitas Gagal: NIP operator harus berupa angka murni tanpa huruf atau karakter simbol.');
+    // Validasi Keamanan NIP Operator (VULN-02):
+    // Komisioner diizinkan menggunakan tanda '-' atau angka murni
+    // Sekretariat wajib angka murni
+    if (opJabatan === 'Komisioner' && opNipRaw === '-') {
+      // Valid Komisioner non-NIP
+    } else if (opNipRaw && !/^\d+$/.test(opNipRaw)) {
+      throw new Error('Validasi Identitas Gagal: NIP operator harus berupa angka murni (atau tanda "-" khusus untuk jabatan Komisioner).');
     }
     const opNip = opNipRaw || '-';
 

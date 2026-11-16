@@ -60,11 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
   syncAllPickers();
   updateTargetPageUI();
 
-  // Masking input NIP: Hanya izinkan angka murni secara real-time
+  // Masking input NIP: Hanya izinkan angka murni, atau tanda '-' jika jabatan Komisioner
   const inputNip = document.getElementById('inputOpNip');
   if (inputNip) {
     inputNip.addEventListener('input', function () {
-      this.value = this.value.replace(/\D/g, '').slice(0, 18);
+      const selectJabatan = document.getElementById('selectOpJabatan');
+      const isKomisioner = selectJabatan && selectJabatan.value === 'Komisioner';
+      if (isKomisioner) {
+        if (this.value === '-') return;
+        this.value = this.value.replace(/[^0-9\-]/g, '').slice(0, 18);
+      } else {
+        this.value = this.value.replace(/\D/g, '').slice(0, 18);
+      }
     });
   }
 });
@@ -240,7 +247,37 @@ function openOperatorModal(canClose = true) {
   }
 
   syncAllPickers();
+  onJabatanChanged();
   if (modal) modal.classList.add('active');
+}
+
+function onJabatanChanged() {
+  const selectJabatan = document.getElementById('selectOpJabatan');
+  const inputNip = document.getElementById('inputOpNip');
+  const nipHint = document.getElementById('nipHint');
+  const isKomisioner = selectJabatan && selectJabatan.value === 'Komisioner';
+
+  if (isKomisioner) {
+    if (inputNip) {
+      inputNip.placeholder = "Masukkan 18 digit NIP atau tanda '-' jika non-PNS";
+      if (!inputNip.value || inputNip.value === '') {
+        inputNip.value = '-';
+      }
+    }
+    if (nipHint) {
+      nipHint.textContent = "Komisioner dapat menggunakan tanda '-' jika tidak memiliki NIP.";
+    }
+  } else {
+    if (inputNip) {
+      inputNip.placeholder = "Contoh: 199003212024211015 (18 digit angka)";
+      if (inputNip.value === '-') {
+        inputNip.value = '';
+      }
+    }
+    if (nipHint) {
+      nipHint.textContent = "Sekretariat KPU wajib mengisikan 18 digit angka NIP resmi.";
+    }
+  }
 }
 
 function closeOperatorModal() {
@@ -265,28 +302,39 @@ function handleOperatorFormSubmit(event) {
     return;
   }
 
-  // Validasi Ketat NIP: Wajib Angka Murni (VULN-02 Hardening)
+  // Validasi Ketat NIP:
+  // - Jika Jabatan = Komisioner: Diizinkan tanda '-' (non-PNS) atau angka murni
+  // - Jika Jabatan = Sekretariat: Wajib angka murni (8-18 digit)
   const nip = nipRaw.replace(/\s+/g, '');
-  if (!/^\d+$/.test(nip)) {
-    showAppToast('NIP tidak valid: hanya boleh berisi angka!', 'error');
-    showAppDialog({
-      title: 'Format NIP Ditolak',
-      type: 'error',
-      message: 'Sistem menolak input NIP karena mengandung huruf atau karakter selain angka.<br><br>NIP wajib berupa <strong>angka murni (digit 0-9)</strong>.<br>Contoh NIP ASN KPU: <code>199003212024211015</code>.',
-      confirmText: 'Perbaiki NIP'
-    });
-    return;
-  }
+  const isKomisioner = jabatan === 'Komisioner';
+  const isDashNip = nip === '-';
 
-  if (nip.length < 8 || nip.length > 18) {
-    showAppToast('NIP harus terdiri dari 8 hingga 18 digit angka!', 'warning');
-    showAppDialog({
-      title: 'Panjang NIP Tidak Sesuai',
-      type: 'warning',
-      message: `Jumlah digit NIP yang Anda masukkan adalah <strong>${nip.length} digit</strong>.<br><br>NIP standar ASN/PNS KPU terdiri dari <strong>18 digit angka</strong> (contoh: <code>199003212024211015</code>). Pastikan digit yang dimasukkan benar.`,
-      confirmText: 'Periksa Kembali'
-    });
-    return;
+  if (isKomisioner && isDashNip) {
+    // Valid Komisioner non-NIP
+  } else {
+    if (!/^\d+$/.test(nip)) {
+      showAppToast(isKomisioner ? 'NIP harus angka atau tanda "-"!' : 'NIP Sekretariat wajib berupa angka!', 'error');
+      showAppDialog({
+        title: 'Format NIP Ditolak',
+        type: 'error',
+        message: isKomisioner
+          ? 'Untuk jabatan Komisioner, NIP dapat diisi dengan tanda <code>-</code> (jika non-PNS) atau berupa angka murni.'
+          : 'Untuk jabatan Sekretariat, NIP wajib berupa <strong>angka murni (digit 0-9)</strong> tanpa huruf atau simbol.<br><br>Contoh NIP ASN KPU: <code>199003212024211015</code>.',
+        confirmText: 'Perbaiki NIP'
+      });
+      return;
+    }
+
+    if (nip.length < 8 || nip.length > 18) {
+      showAppToast('NIP harus terdiri dari 8 hingga 18 digit angka!', 'warning');
+      showAppDialog({
+        title: 'Panjang NIP Tidak Sesuai',
+        type: 'warning',
+        message: `Jumlah digit NIP yang Anda masukkan adalah <strong>${nip.length} digit</strong>.<br><br>NIP standar ASN KPU terdiri dari <strong>18 digit angka</strong> (contoh: <code>199003212024211015</code>). Pastikan digit yang dimasukkan benar.`,
+        confirmText: 'Periksa Kembali'
+      });
+      return;
+    }
   }
 
   saveOperatorProfile({ nama, nip, jabatan });

@@ -65,7 +65,9 @@
 ### 6. Aturan Identitas & Akuntabilitas Operator
 - Sebelum dapat menggunakan aplikasi, operator wajib menginputkan data diri:
   1. **Nama Lengkap**
-  2. **NIP** (Wajib berupa karakter angka murni/digit 0-9, panjang 8 hingga 18 digit sesuai format standar NIP ASN/PNS. Huruf dan simbol khusus otomatis ditolak).
+  2. **NIP:**
+     - **Sekretariat:** Wajib berupa karakter angka murni (digit 0-9), panjang 8 hingga 18 digit sesuai format standar NIP ASN/PNS KPU.
+     - **Komisioner:** Diperbolehkan mengisi tanda strip (`-`) jika non-PNS/non-ASN, atau diisi angka murni jika memiliki NIP. Karakter huruf selain angka/tanda `-` otomatis ditolak.
   3. **Jabatan** (Pilihan baku: `Sekretariat` atau `Komisioner`)
 - Data identitas disimpan pada memori lokal browser (`localStorage`) sehingga operator hanya perlu mengisinya satu kali.
 - Data identitas operator disertakan pada setiap transaksi unggahan:

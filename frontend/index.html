@@ -467,9 +467,9 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="inputOpNip">NIP (Nomor Induk Pegawai - Wajib Angka) *</label>
-            <input type="text" id="inputOpNip" class="form-input" placeholder="Contoh: 199003212024211015 (18 digit angka)" inputmode="numeric" pattern="[0-9]*" maxlength="18" required>
-            <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px;">Hanya menerima karakter angka (0-9).</div>
+            <label class="form-label" for="inputOpNip">NIP (Nomor Induk Pegawai) *</label>
+            <input type="text" id="inputOpNip" class="form-input" placeholder="Masukkan 18 digit NIP (atau '-' untuk Komisioner)" inputmode="text" maxlength="18" required>
+            <div id="nipHint" style="font-size: 10.5px; color: var(--text-muted); margin-top: 3px;">Sekretariat wajib angka (0-9). Komisioner dapat mengisi tanda '-'.</div>
           </div>
 
           <div class="form-group">
@@ -481,7 +481,7 @@
               </div>
               <span class="picker-field-chevron">▾</span>
             </div>
-            <select id="selectOpJabatan" class="visually-hidden-select" onchange="syncAllPickers();" required>
+            <select id="selectOpJabatan" class="visually-hidden-select" onchange="syncAllPickers(); onJabatanChanged();" required>
               <option value="">-- Pilih Jabatan --</option>
               <option value="Sekretariat">Sekretariat</option>
               <option value="Komisioner">Komisioner</option>
