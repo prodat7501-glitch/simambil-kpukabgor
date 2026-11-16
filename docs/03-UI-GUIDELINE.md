@@ -13,7 +13,7 @@
 - **Mobile First Approach:** Optimal pada resolusi layar smartphone (360px - 480px width).
 - **Tab Navigasi Bawah (Bottom Navigation Bar):**
   - Tab 1: **Kamera & Upload** (Icon Kamera)
-  - Tab 2: **Rekap & Monitoring** (Icon Chart/Clipboard)
+  - Tab 2: **Rekap & Pratinjau** (Icon Chart/Clipboard)
 - **Sticky Bottom Action Bar:** Tombol besar "Ambil Foto" dan tombol konfirmasi "Render & Simpan (X Halaman)".
 
 ### 4. Standar Tampilan Mobile / Android (Professional Enterprise Grade)
@@ -34,3 +34,9 @@
   - Dilengkapi tombol Blitz / Flash (`⚡`) pada header dan footer jendela bidik kamera.
   - Mengontrol lampu LED senter fisik perangkat (*Hardware Torch*) via WebRTC `applyConstraints({ advanced: [{ torch: true }] })`.
   - Dilengkapi *fallback* penerang layar (*Screen Glow Light*) otomatis jika perangkat tidak mendukung senter hardware, memastikan dokumen C-Plano tetap dapat difoto dengan jelas meskipun TPS dalam kondisi gelap atau minim cahaya.
+
+### 5. Fitur Pratinjau Dokumen Terpadu (Rekap & Pratinjau)
+- Menu tab kedua dinamai **Rekap & Pratinjau**.
+- Pada dialog sukses pengunggahan berkas, tautan eksternal "Buka Google Drive" ditiadakan guna menjaga alur kerja tetap terpusat di dalam aplikasi.
+- Seluruh dokumen yang telah diunggah dapat dilihat pratinjaunya secara langsung dari menu **Rekap & Pratinjau** melalui tombol **Pratinjau 👁️** pada rincian 7 lembaga per TPS.
+- Pratinjau berkas PDF dibuka menggunakan **Modal Viewer Terpadu** berbasis Google Drive Embed Viewer tanpa mengharuskan pengguna berpindah aplikasi, lengkap dengan tombol opsi "Layar Penuh ↗️" jika ingin membuka tampilan browser penuh.

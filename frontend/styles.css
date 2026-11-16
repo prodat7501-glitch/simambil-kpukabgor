@@ -1703,3 +1703,76 @@ body {
   color: #94A3B8;
   font-size: 13px;
 }
+
+/* ==============================================================================
+ * MODAL PRATINJAU DOKUMEN (REKAP & PRATINJAU)
+ * ==============================================================================
+ */
+.doc-preview-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 120;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.doc-preview-modal.active {
+  display: flex;
+}
+
+.doc-preview-card {
+  background: #ffffff;
+  width: 100%;
+  max-width: 680px;
+  height: 88vh;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalScaleUp 0.22s ease-out;
+}
+
+.doc-preview-header {
+  padding: 12px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.doc-preview-body {
+  flex: 1;
+  background: #f8fafc;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-preview-direct {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-preview-direct:hover, .btn-preview-direct:active {
+  background: #e2e8f0;
+  color: var(--kpu-maroon);
+  border-color: var(--kpu-maroon);
+}

@@ -445,6 +445,9 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
         const tps = formatTPS(String(row[6] || '').trim());
         const kodeLembaga = normalizeKodeLembaga(String(row[3] || '').trim());
         const hal = parseInt(String(row[7] || ''), 10) || 1;
+        const fileId = String(row[8] || '').trim();
+        const fileUrl = String(row[9] || '').trim();
+        const fileName = String(row[1] || '').trim();
 
         if (!kec || !desa || !tps || !kodeLembaga) continue;
 
@@ -453,7 +456,17 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
           uploadMap.set(key, {});
         }
         const pagesMap = uploadMap.get(key);
-        pagesMap[kodeLembaga] = Math.max(pagesMap[kodeLembaga] || 0, hal);
+        const existing = pagesMap[kodeLembaga];
+        const existingHal = (existing && typeof existing === 'object') ? (existing.hal || 0) : (Number(existing) || 0);
+
+        if (!existing || hal >= existingHal) {
+          pagesMap[kodeLembaga] = {
+            hal: hal,
+            fileId: fileId,
+            fileUrl: fileUrl,
+            fileName: fileName
+          };
+        }
       }
     }
 
@@ -467,7 +480,21 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
 
       targetLembaga.forEach(kode => {
         const targetHal = TARGET_HALAMAN[kode] || 1;
-        const actualHal = tpsPages[kode] || 0;
+        const docEntry = tpsPages[kode];
+        let actualHal = 0;
+        let fileId = '';
+        let fileUrl = '';
+        let fileName = '';
+
+        if (docEntry && typeof docEntry === 'object') {
+          actualHal = docEntry.hal || 0;
+          fileId = docEntry.fileId || '';
+          fileUrl = docEntry.fileUrl || '';
+          fileName = docEntry.fileName || '';
+        } else if (typeof docEntry === 'number') {
+          actualHal = docEntry;
+        }
+
         const isLengkap = actualHal >= targetHal;
 
         const kurang = Math.max(0, targetHal - actualHal);
@@ -477,7 +504,10 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
           target: targetHal,
           lengkap: isLengkap,
           kurang: kurang,
-          persen: targetHal > 0 ? Math.min(100, Math.round((actualHal / targetHal) * 100)) : 0
+          persen: targetHal > 0 ? Math.min(100, Math.round((actualHal / targetHal) * 100)) : 0,
+          fileId: fileId,
+          fileUrl: fileUrl,
+          fileName: fileName
         };
 
         if (isLengkap) totalLengkap++;

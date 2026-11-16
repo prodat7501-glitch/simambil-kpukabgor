@@ -231,7 +231,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
           </svg>
-          Filter Monitoring Wilayah
+          Filter Rekap & Pratinjau Wilayah
         </div>
 
         <div class="form-group">
@@ -333,7 +333,7 @@
         </div>
         <div id="rekapListContainer" style="max-height: 480px; overflow-y: auto;">
           <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 12px;">
-            Memuat data monitoring TPS...
+            Memuat data rekap & pratinjau TPS...
           </div>
         </div>
       </div>
@@ -356,7 +356,7 @@
           <line x1="8" y1="21" x2="16" y2="21"></line>
           <line x1="12" y1="17" x2="12" y2="21"></line>
         </svg>
-        <span>Rekap Monitoring</span>
+        <span>Rekap & Pratinjau</span>
       </div>
     </nav>
 
@@ -573,6 +573,29 @@
 
         <div class="bottom-sheet-list" id="pickerOptionsList">
           <!-- Dynamic Options Rendered Here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- MODAL PRATINJAU DOKUMEN PDF RESMI (REKAP & PRATINJAU)                     -->
+    <!-- ========================================================================= -->
+    <div id="previewDocModal" class="doc-preview-modal" onclick="if(event.target === this) closeDocumentPreviewModal()">
+      <div class="doc-preview-card" onclick="event.stopPropagation()">
+        <div class="doc-preview-header">
+          <div style="flex: 1; min-width: 0;">
+            <div id="previewDocModalTitle" style="font-weight: 800; font-size: 13.5px; color: var(--kpu-maroon); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pratinjau Dokumen</div>
+            <div id="previewDocModalSub" style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Kecamatan • Desa • TPS</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <a id="previewDocBtnExternal" href="#" target="_blank" class="btn btn-secondary" style="padding: 5px 10px; font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 600;">
+              <span>Layar Penuh</span> <span>↗️</span>
+            </a>
+            <button type="button" class="modal-close-btn" onclick="closeDocumentPreviewModal()" style="font-size: 22px; line-height: 1; cursor: pointer; background: none; border: none; color: #64748b; padding: 2px 6px;">&times;</button>
+          </div>
+        </div>
+        <div class="doc-preview-body">
+          <iframe id="previewDocIframe" src="about:blank" style="width: 100%; height: 100%; border: none;" allow="autoplay" loading="lazy"></iframe>
         </div>
       </div>
     </div>

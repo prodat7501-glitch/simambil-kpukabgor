@@ -48,6 +48,7 @@ let rekapKecamatanList = [];
 let currentRekapFilterStatus = 'ALL';
 let currentRekapViewMode = 'wilayah'; // 'wilayah' atau 'tps'
 let currentWilayahFilter = 'PENDING'; // 'PENDING', 'ALL', 'KOSONG', 'LENGKAP'
+const sessionUploadedDocsMap = new Map(); // Cache URL dokumen sesi aktif: "KEC|DESA|TPS|LEMBAGA" => { fileUrl, fileId, fileName }
 
 // Inisialisasi saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
@@ -1426,7 +1427,16 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
         }
       }
 
-      onUploadSuccess(resJson, { kecamatan, desa, tps, fileName });
+      if (resJson && resJson.fileUrl) {
+        const docKey = `${kecamatan}|${desa}|${formatTpsNum(tps)}|${lembaga}`;
+        sessionUploadedDocsMap.set(docKey, {
+          fileUrl: resJson.fileUrl,
+          fileId: resJson.fileId,
+          fileName: resJson.fileName || fileName
+        });
+      }
+
+      onUploadSuccess(resJson, { kecamatan, desa, tps, fileName, lembaga });
 
     } else {
       // Mock upload simulator jika URL belum diisi
@@ -1435,7 +1445,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
           status: 'success',
           message: 'Simulasi: Dokumen berhasil di-render secara lokal (koneksi ke Google Drive sedang offline)',
           fileName: fileName
-        }, { kecamatan, desa, tps, fileName });
+        }, { kecamatan, desa, tps, fileName, lembaga });
       }, 1500);
     }
 
@@ -1587,11 +1597,10 @@ function onUploadSuccess(res, meta = {}) {
       `;
     }
 
-    const driveLink = res.fileUrl ? `<br><br><a href="${res.fileUrl}" target="_blank" style="color:var(--kpu-maroon); font-weight:700; text-decoration:underline;">Buka Berkas di Google Drive</a>` : '';
     showAppDialog({
       title: 'Dokumen Berhasil Diunggah!',
       type: 'success',
-      message: `${escapeHtml(res.message || 'Berkas telah berhasil disimpan ke Google Drive.')}<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || meta.fileName || '')}</div>${driveLink}${sessionInfoHtml}`,
+      message: `${escapeHtml(res.message || 'Berkas telah berhasil disimpan ke Google Drive.')}<br><br><div style="font-family:monospace; font-size:11.5px; background:#F8FAFC; border:1px solid #E2E8F0; padding:6px 10px; border-radius:8px; word-break:break-all; color:#1E293B;">${escapeHtml(res.fileName || meta.fileName || '')}</div>${sessionInfoHtml}<div style="font-size: 11px; color: var(--text-muted); margin-top: 10px; text-align: center;">💡 Pratinjau berkas dapat dilihat melalui menu <strong>Rekap &amp; Pratinjau</strong>.</div>`,
       confirmText: 'Lanjutkan'
     });
   } else {
@@ -2162,6 +2171,19 @@ function renderRekapList() {
 
       const btnLabel = actualHal > 0 && !isCompleted ? 'Lengkapi 📸' : (isCompleted ? 'Ulang 📸' : 'Foto 📸');
 
+      // Ambil fileUrl atau fileId dari detailHalaman atau dari session map
+      const normT = formatTpsNum(rec.tps);
+      const sessionKey = `${rec.kecamatan}|${rec.desa}|${normT}|${k}`;
+      const sessionDoc = sessionUploadedDocsMap.get(sessionKey);
+      const docFileUrl = (detail && detail.fileUrl) || (sessionDoc && sessionDoc.fileUrl) || '';
+      const docFileId = (detail && detail.fileId) || (sessionDoc && sessionDoc.fileId) || '';
+
+      const btnPreview = (actualHal > 0 && (docFileUrl || docFileId)) ? `
+        <button type="button" class="btn-preview-direct" onclick="event.stopPropagation(); openDocumentPreview('${escapeJs(docFileUrl)}', '${escapeJs(docFileId)}', '${escapeJs(fullName)}', '${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}')">
+          Pratinjau 👁️
+        </button>
+      ` : '';
+
       breakdownRowsHtml += `
         <div class="breakdown-row">
           <div class="breakdown-row-left">
@@ -2170,6 +2192,7 @@ function renderRekapList() {
           </div>
           <div class="breakdown-row-right">
             ${badgeHtml}
+            ${btnPreview}
             <button type="button" class="btn-upload-direct" onclick="event.stopPropagation(); selectTPSAndLembagaFromRekap('${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}', '${k}')">
               ${btnLabel}
             </button>
@@ -2235,6 +2258,47 @@ function toggleRekapBreakdown(cardId, btn) {
       if (arrow) arrow.textContent = '▴';
     }
   }
+}
+
+/**
+ * ==============================================================================
+ * PRATINJAU DOKUMEN PDF (REKAP & PRATINJAU)
+ * Menampilkan berkas resmi Google Drive dalam modal terpadu tanpa membuka tab eksternal
+ * ==============================================================================
+ */
+function openDocumentPreview(fileUrl, fileId, title, kec, desa, tps) {
+  const modal = document.getElementById('previewDocModal');
+  const modalTitle = document.getElementById('previewDocModalTitle');
+  const modalSub = document.getElementById('previewDocModalSub');
+  const iframe = document.getElementById('previewDocIframe');
+  const btnExternal = document.getElementById('previewDocBtnExternal');
+
+  let targetFileId = fileId;
+  if (!targetFileId && fileUrl) {
+    const match = fileUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) targetFileId = match[1];
+  }
+
+  const directViewUrl = fileUrl || (targetFileId ? `https://drive.google.com/file/d/${targetFileId}/view?usp=sharing` : '#');
+  const embedUrl = targetFileId ? `https://drive.google.com/file/d/${targetFileId}/preview` : directViewUrl;
+
+  if (modalTitle) modalTitle.textContent = title ? `Pratinjau: ${title}` : 'Pratinjau Dokumen';
+  if (modalSub) modalSub.textContent = `📍 Kec. ${kec} • Desa ${desa} • TPS ${tps}`;
+  if (btnExternal) {
+    btnExternal.href = directViewUrl;
+  }
+  if (iframe) {
+    iframe.src = embedUrl;
+  }
+
+  if (modal) modal.classList.add('active');
+}
+
+function closeDocumentPreviewModal() {
+  const modal = document.getElementById('previewDocModal');
+  const iframe = document.getElementById('previewDocIframe');
+  if (iframe) iframe.src = 'about:blank';
+  if (modal) modal.classList.remove('active');
 }
 
 function escapeJs(str) {
