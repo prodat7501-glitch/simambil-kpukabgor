@@ -14,6 +14,7 @@
 // Konstanta Nama Sheet
 const SHEETS = {
   WILAYAH: 'Master_Wilayah',
+  WILAYAH_PILKADA: 'Master_Wilayah_Pilkada',
   KATEGORI: 'Master_Kategori',
   LOG: 'Log_Dokumen',
   REKAP: 'Rekap_Progres'
@@ -229,34 +230,53 @@ function getInitialMasterData() {
       }
     }
 
-    // 2. Ambil data Wilayah berjenjang (Kecamatan -> Desa -> TPS)
-    // SOT: Mendukung pemisahan TPS Pemilu vs Pilkada jika kolom Kategori (Column E) diisi di Spreadsheet
+    // 2. Ambil data Wilayah Pemilu dari Sheet Master_Wilayah (1.205 TPS)
     const dataWilayah = sheetWilayah.getDataRange().getValues();
     const wilayahTree = {};
-    const wilayahPilkadaTree = {};
-    let hasPilkadaWilayah = false;
+    let totalTpsPemilu = 0;
 
     for (let i = 1; i < dataWilayah.length; i++) {
       const kec = String(dataWilayah[i][1] || '').trim().toUpperCase();
       const desa = String(dataWilayah[i][2] || '').trim().toUpperCase();
       const tps = formatTPS(String(dataWilayah[i][3] || '').trim());
-      const kategoriTps = String(dataWilayah[i][4] || '').trim().toUpperCase();
 
       if (!kec || !desa || !tps) continue;
 
-      // Masukkan ke wilayah umum / Pemilu jika bukan khusus Pilkada
-      if (kategoriTps !== 'PILKADA') {
-        if (!wilayahTree[kec]) wilayahTree[kec] = {};
-        if (!wilayahTree[kec][desa]) wilayahTree[kec][desa] = [];
-        if (!wilayahTree[kec][desa].includes(tps)) wilayahTree[kec][desa].push(tps);
+      if (!wilayahTree[kec]) wilayahTree[kec] = {};
+      if (!wilayahTree[kec][desa]) wilayahTree[kec][desa] = [];
+      if (!wilayahTree[kec][desa].includes(tps)) {
+        wilayahTree[kec][desa].push(tps);
+        totalTpsPemilu++;
       }
+    }
 
-      // Masukkan ke wilayah Pilkada jika khusus Pilkada atau tanpa pembatas kategori
-      if (kategoriTps === 'PILKADA') {
+    // 3. Ambil data Wilayah Pilkada dari Sheet Terpisah Master_Wilayah_Pilkada
+    let sheetWilayahPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+    if (!sheetWilayahPilkada) {
+      sheetWilayahPilkada = ss.insertSheet(SHEETS.WILAYAH_PILKADA);
+      ensureSheetHeaders(sheetWilayahPilkada, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'JUMLAH_DPT']);
+    }
+
+    const wilayahPilkadaTree = {};
+    let hasPilkadaWilayah = false;
+    let totalTpsPilkada = 0;
+
+    if (sheetWilayahPilkada && sheetWilayahPilkada.getLastRow() > 1) {
+      const dataWilayahPilkada = sheetWilayahPilkada.getDataRange().getValues();
+      for (let i = 1; i < dataWilayahPilkada.length; i++) {
+        const kec = String(dataWilayahPilkada[i][1] || '').trim().toUpperCase();
+        const desa = String(dataWilayahPilkada[i][2] || '').trim().toUpperCase();
+        const tps = formatTPS(String(dataWilayahPilkada[i][3] || '').trim());
+
+        if (!kec || !desa || !tps) continue;
+
         hasPilkadaWilayah = true;
         if (!wilayahPilkadaTree[kec]) wilayahPilkadaTree[kec] = {};
         if (!wilayahPilkadaTree[kec][desa]) wilayahPilkadaTree[kec][desa] = [];
-        if (!wilayahPilkadaTree[kec][desa].includes(tps)) wilayahPilkadaTree[kec][desa].push(tps);
+        if (!wilayahPilkadaTree[kec][desa].includes(tps)) {
+          wilayahPilkadaTree[kec][desa].push(tps);
+          totalTpsPilkada++;
+        }
       }
     }
 
@@ -277,15 +297,18 @@ function getInitialMasterData() {
     };
 
     const wilayahList = formatWilayahTree(wilayahTree);
-    const wilayahPilkadaList = hasPilkadaWilayah ? formatWilayahTree(wilayahPilkadaTree) : [];
+    const wilayahPilkadaList = hasPilkadaWilayah ? formatWilayahTree(wilayahPilkadaTree) : wilayahList;
 
     const result = {
       status: 'success',
       jenisDokumen: Array.from(jenisDokumenSet),
       kategoriPemilihan: [
-        { kode: 'PEMILU', nama: 'Pemilu (Presiden & Legislatif)', totalLembaga: 5 },
-        { kode: 'PILKADA', nama: 'Pilkada (Gubernur & Bupati)', totalLembaga: 2 }
+        { kode: 'PEMILU', nama: 'Pemilu (Presiden & Legislatif)', totalLembaga: 5, totalTps: totalTpsPemilu },
+        { kode: 'PILKADA', nama: 'Pilkada (Gubernur & Bupati)', totalLembaga: 2, totalTps: hasPilkadaWilayah ? totalTpsPilkada : totalTpsPemilu }
       ],
+      hasDedicatedPilkadaSheet: hasPilkadaWilayah,
+      totalTpsPemilu: totalTpsPemilu,
+      totalTpsPilkada: hasPilkadaWilayah ? totalTpsPilkada : totalTpsPemilu,
       lembaga: Array.from(lembagaMap.values()),
       lembagaByKategori: {
         'PEMILU': [
@@ -623,8 +646,16 @@ function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori) {
       };
     }
 
-    // 3. Baca Master Wilayah dan hitung status per TPS
-    const wilayahData = sheetWilayah.getDataRange().getValues();
+    // 3. Baca Master Wilayah sesuai kategori pemilihan:
+    // Jika Pilkada dan sheet Master_Wilayah_Pilkada tersedia data, gunakan Master_Wilayah_Pilkada
+    let targetSheetWilayah = sheetWilayah;
+    if (catUpper === 'PILKADA') {
+      const sheetPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+      if (sheetPilkada && sheetPilkada.getLastRow() > 1) {
+        targetSheetWilayah = sheetPilkada;
+      }
+    }
+    const wilayahData = targetSheetWilayah.getDataRange().getValues();
     const records = [];
     const processedKeys = new Set();
     let countLengkap = 0;
@@ -997,12 +1028,19 @@ function setupDatabase() {
     sheetKategori.getRange(2, 1, kategoriRows.length, 3).setValues(kategoriRows);
   }
 
-  // 2. Setup Master_Wilayah (Non-destructive: tidak ada data dummy, dikelola mandiri oleh admin KPU)
+  // 2. Setup Master_Wilayah (Pemilu - Non-destructive: data 1.205 TPS tetap aman)
   let sheetWilayah = ss.getSheetByName(SHEETS.WILAYAH);
   if (!sheetWilayah) {
     sheetWilayah = ss.insertSheet(SHEETS.WILAYAH);
   }
-  ensureSheetHeaders(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'KATEGORI']);
+  ensureSheetHeaders(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'JUMLAH_DPT']);
+
+  // 2b. Setup Master_Wilayah_Pilkada (Sheet Terpisah Khusus TPS Pilkada)
+  let sheetWilayahPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+  if (!sheetWilayahPilkada) {
+    sheetWilayahPilkada = ss.insertSheet(SHEETS.WILAYAH_PILKADA);
+  }
+  ensureSheetHeaders(sheetWilayahPilkada, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'JUMLAH_DPT']);
 
   // 3. Setup Log_Dokumen (Pastikan kolom operator K, L, M terpasang tanpa menghapus riwayat log)
   let sheetLog = ss.getSheetByName(SHEETS.LOG);

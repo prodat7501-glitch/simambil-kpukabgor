@@ -2326,6 +2326,9 @@ function setRekapCategory(kategori) {
 
   // 4. Hitung ulang rekapitulasi lokal secara instan (0ms)
   recalculateRekapForCurrentCategory();
+
+  // 5. Sinkronisasi latar belakang dengan server jika menggunakan sheet terpisah Master_Wilayah_Pilkada
+  loadRekapData();
 }
 
 function onRekapKategoriFilterChanged() {

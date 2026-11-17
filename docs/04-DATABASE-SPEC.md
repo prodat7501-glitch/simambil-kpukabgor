@@ -2,14 +2,26 @@
 
 Aplikasi menggunakan Spreadsheet sebagai basis data master, rekap log upload (termasuk atribusi operator), dan view rekapitulasi progres.
 
-### 1. Sheet: `Master_Wilayah`
-Menampung hirarki wilayah Kabupaten Gorontalo (diisi langsung oleh Admin/Pengguna, tanpa data dummy otomatis):
+### 1. Sheet: `Master_Wilayah` (Khusus Pemilu - SSOT 1.205 TPS)
+Menampung hirarki wilayah Pemilu Kabupaten Gorontalo (diisi langsung oleh Admin/Pengguna, tanpa data dummy otomatis):
 | Kolom | Nama Field | Tipe Data | Keterangan |
 |---|---|---|---|
 | A | ID_TPS | String | Unique Key (misal: TPS_ASPARAGA_KARYA-INDAH_001) |
+| B | NAMA_KEC | String | Nama Kecamatan (19 Kecamatan) |
+| C | NAMA_DESA | String | Nama Desa/Kelurahan (205 Desa/Kelurahan) |
+| D | NO_TPS | String | Format 3 digit (contoh: 001, 002, s/d 1205) |
+| E | JUMLAH_DPT | Number / String | (Opsional) Jumlah DPT per TPS |
+
+### 1b. Sheet: `Master_Wilayah_Pilkada` (Khusus Pilkada - Regrouping TPS)
+Menampung hirarki wilayah Pilkada Kabupaten Gorontalo hasil regrouping/penggabungan TPS Pilkada:
+| Kolom | Nama Field | Tipe Data | Keterangan |
+|---|---|---|---|
+| A | ID_TPS | String | Unique Key (misal: PILKADA_ASPARAGA_KARYA-INDAH_001) |
 | B | NAMA_KEC | String | Nama Kecamatan |
 | C | NAMA_DESA | String | Nama Desa/Kelurahan |
-| D | NO_TPS | String | Format 3 digit (contoh: 001, 002, s/d 1205) |
+| D | NO_TPS | String | Format 3 digit (nomor TPS hasil regrouping Pilkada) |
+| E | JUMLAH_DPT | Number / String | (Opsional) Jumlah DPT Pilkada per TPS |
+*Catatan:* Jika sheet `Master_Wilayah_Pilkada` belum diisi oleh admin KPU, sistem secara otomatis dan aman menggunakan data `Master_Wilayah` sebagai fallback darurat.
 
 ### 2. Sheet: `Master_Kategori`
 Menampung referensi berkas dan lembaga:
