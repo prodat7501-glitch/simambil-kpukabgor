@@ -125,6 +125,19 @@ body {
   text-overflow: ellipsis;
 }
 
+.header-brand-desc {
+  font-size: 7.2px;
+  font-weight: 500;
+  color: #F8FAFC;
+  opacity: 0.95;
+  letter-spacing: -0.1px;
+  line-height: 1.15;
+  margin-top: 1.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
 .header-actions {
   display: flex;
   align-items: center;

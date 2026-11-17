@@ -1,5 +1,5 @@
 # DOKUMEN 08: LAPORAN AUDIT KEAMANAN & PENETRATION TESTING
-## Sistem Informasi Manajemen Administrasi Berkas Pemilu (SIMAMBIL)
+## Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile (SIMAMBIL)
 ### Komisi Pemilihan Umum (KPU) Kabupaten Gorontalo
 
 ---

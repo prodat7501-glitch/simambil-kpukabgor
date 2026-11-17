@@ -1,9 +1,9 @@
 # Product Requirements Document (PRD)
-## Project Name: SIMAMBIL (Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan)
+## Project Name: SIMAMBIL (Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile)
 ### Lembaga: Komisi Pemilihan Umum Kabupaten Gorontalo
 
 ### 1. Ringkasan & Tujuan
-SIMAMBIL (Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan) adalah aplikasi web responsif berbasis PWA (Progressive Web App) yang dikembangkan untuk **Komisi Pemilihan Umum Kabupaten Gorontalo**. Bertujuan untuk memfasilitasi petugas lapangan/operator guna mendokumentasikan berkas fisik hasil penghitungan suara (C-Plano / D-Plano) melalui kamera handphone, menyatukan (render) banyak halaman foto (hingga 20 halaman) menjadi 1 berkas dokumen utuh (PDF), serta menyimpannya otomatis ke Google Drive target khusus dengan format penamaan standar baku. Aplikasi ini menjamin akuntabilitas pengunggahan dengan mencatat identitas operator (Nama, NIP, Jabatan) pada setiap berkas yang diunggah.
+SIMAMBIL (Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile) adalah aplikasi web responsif berbasis PWA (Progressive Web App) yang dikembangkan untuk **Komisi Pemilihan Umum Kabupaten Gorontalo**. Bertujuan untuk memfasilitasi petugas lapangan/operator guna mendokumentasikan berkas fisik hasil penghitungan suara (C-Plano / D-Plano) melalui kamera handphone, menyatukan (render) banyak halaman foto (hingga 20 halaman) menjadi 1 berkas dokumen utuh (PDF), serta menyimpannya otomatis ke Google Drive target khusus dengan format penamaan standar baku. Aplikasi ini menjamin akuntabilitas pengunggahan dengan mencatat identitas operator (Nama, NIP, Jabatan) pada setiap berkas yang diunggah.
 
 ### 2. Ruang Lingkup & Target Platform (Decoupled Architecture)
 - **Frontend Client (Vercel & GitHub):** 

@@ -1,4 +1,4 @@
-# SIMAMBIL - Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan
+# SIMAMBIL - Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile
 
 Aplikasi PWA Dokumentasi Berkas Hasil Penghitungan Suara (Model C-Plano / D-Plano) berbasis **Decoupled Architecture**:
 - **Frontend:** Progressive Web App (PWA) di-deploy ke **Vercel** via **GitHub**.

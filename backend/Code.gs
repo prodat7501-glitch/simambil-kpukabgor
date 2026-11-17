@@ -1,6 +1,6 @@
 /**
  * ==============================================================================
- * SISTEM INFORMASI DOKUMENTASI & REKAPITULASI PEMILU (SIMAMBIL)
+ * SIMAMBIL - Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile
  * Google Apps Script Headless REST API (backend/Code.gs)
  * 
  * SOT Reference:
@@ -90,7 +90,7 @@ function doGet(e) {
     // Default info status jika endpoint dibuka langsung di browser
     return createJsonResponse({
       status: 'success',
-      app: 'SIMAMBIL - Dokumentasi Kamera Pemilu REST API (Secured)',
+      app: 'SIMAMBIL - Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile (Secured)',
       version: '2.1.0',
       message: 'API aktif. Seluruh endpoint operasional dilindungi token otentikasi resmi KPU.',
       authenticated: isAuthorized(e)

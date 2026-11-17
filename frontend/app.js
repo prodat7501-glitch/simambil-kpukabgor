@@ -108,6 +108,21 @@ function hydrateFromLocalCache() {
   }
 }
 
+/**
+ * Auto-fit Header Brand Subtitle (Baris ke-3)
+ * Menyesuaikan ukuran font secara dinamis agar 100% pas dalam 1 baris di semua ukuran layar handphone
+ */
+function fitHeaderBrandDesc() {
+  const el = document.getElementById('headerBrandDesc');
+  if (!el || el.clientWidth === 0) return;
+  let currentSize = 7.5;
+  el.style.fontSize = currentSize + 'px';
+  while (el.scrollWidth > el.clientWidth && currentSize > 4.8) {
+    currentSize -= 0.15;
+    el.style.fontSize = currentSize + 'px';
+  }
+}
+
 // Inisialisasi saat DOM siap
 document.addEventListener('DOMContentLoaded', () => {
   initPagesState();
@@ -125,6 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
   checkOperatorGate();
   syncAllPickers();
   updateTargetPageUI();
+
+  // Auto-fit baris ke-3 nama aplikasi ke dalam 1 baris
+  requestAnimationFrame(fitHeaderBrandDesc);
+  window.addEventListener('resize', fitHeaderBrandDesc);
+  window.addEventListener('orientationchange', () => setTimeout(fitHeaderBrandDesc, 150));
 
   // Masking input NIP: Hanya izinkan angka murni, atau tanda '-' jika jabatan Komisioner
   const inputNip = document.getElementById('inputOpNip');

@@ -18,7 +18,11 @@
 
 ### 4. Standar Tampilan Mobile / Android (Professional Enterprise Grade)
 - **Two-Tier Header Structure:**
-  - Baris Atas: Logo KPU + Tipografi resmi "SIMAMBIL" & "KPU KABUPATEN GORONTALO" + Status Koneksi (Online/Offline). Endpoint API terkonfigurasi otomatis dan tombol pengaturan dihilangkan agar antarmuka bersih dan terhindar dari salah konfigurasi oleh operator.
+  - Baris Atas: Logo KPU + Tiga Baris Tipografi Resmi:
+    - Baris 1: Judul Aplikasi `"SIMAMBIL"`
+    - Baris 2: Subtitle Instansi `"KPU KABUPATEN GORONTALO"`
+    - Baris 3: Kepanjangan Resmi `"Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile"` (tulisan kecil dipaskan presisi dalam 1 baris utuh)
+    + Status Koneksi (Online/Offline). Endpoint API terkonfigurasi otomatis dan tombol pengaturan dihilangkan agar antarmuka bersih dan terhindar dari salah konfigurasi oleh operator.
   - Baris Bawah: Kartu Identitas Operator (Nama, Jabatan: Sekretariat / Komisioner, dan NIP) yang berkontras tinggi, mudah dibaca, dan responsif terhadap sentuhan satu jempol.
 - **In-App Toast & Dialog System (Tanpa `alert()` Bawaan Browser):**
   - Seluruh notifikasi sukses, peringatan, maupun validasi menggunakan komponen dialog in-app dengan animasi halus, ikon status tematik, dan tipografi rapi, sehingga tidak lagi memunculkan popup abu-abu default browser Android (`...menyatakan [Oke]`).

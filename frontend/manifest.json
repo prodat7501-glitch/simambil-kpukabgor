@@ -1,7 +1,7 @@
 {
-  "name": "SIMAMBIL - Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan",
+  "name": "SIMAMBIL - Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile",
   "short_name": "SIMAMBIL",
-  "description": "Sistem Informasi Manajemen Administrasi Berkas Pemilu/Pemilihan (C-Plano / D-Plano) Berbasis Vercel & Google Apps Script",
+  "description": "Sistem Informasi Manajemen Arsip Pemilu/Pemilihan Berbasis Mobile (C-Plano / D-Plano) - KPU Kabupaten Gorontalo",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
