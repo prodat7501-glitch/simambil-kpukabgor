@@ -2141,29 +2141,42 @@ function onRekapKecamatanChange(skipFetch = false) {
   const filterKec = document.getElementById('filterRekapKecamatan')?.value || '';
   const filterDesa = document.getElementById('filterRekapDesa');
 
-  if (!filterDesa) return;
-  const currentDesa = filterDesa.value;
-  filterDesa.innerHTML = '<option value="">-- Semua Desa --</option>';
+  if (filterDesa) {
+    const currentDesa = filterDesa.value;
+    filterDesa.innerHTML = '<option value="">-- Semua Desa --</option>';
 
-  if (filterKec && masterDataCache) {
-    const activeWil = getActiveWilayahList();
-    const kecObj = activeWil.find(w => w.kecamatan === filterKec);
-    if (kecObj && kecObj.desaList) {
-      kecObj.desaList.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d.desa;
-        opt.textContent = d.desa;
-        filterDesa.appendChild(opt);
-      });
-      if (currentDesa && kecObj.desaList.some(d => d.desa === currentDesa)) {
-        filterDesa.value = currentDesa;
+    if (filterKec && masterDataCache) {
+      const activeWil = getActiveWilayahList();
+      const kecObj = activeWil.find(w => w.kecamatan === filterKec);
+      if (kecObj && kecObj.desaList) {
+        kecObj.desaList.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.desa;
+          opt.textContent = d.desa;
+          filterDesa.appendChild(opt);
+        });
+        if (currentDesa && kecObj.desaList.some(d => d.desa === currentDesa)) {
+          filterDesa.value = currentDesa;
+        } else {
+          filterDesa.value = '';
+        }
       }
     }
   }
 
+  // Hitung ulang metrik KPI dan saring tampilan TPS/Wilayah secara instan (0ms)
+  recalculateRekapForCurrentCategory();
+
   if (!skipFetch) {
     loadRekapData();
   }
+  syncAllPickers();
+}
+
+function onRekapDesaChange() {
+  // Hitung ulang metrik KPI dan saring tampilan TPS/Wilayah secara instan (0ms)
+  recalculateRekapForCurrentCategory();
+  loadRekapData();
   syncAllPickers();
 }
 
@@ -2356,10 +2369,21 @@ function onRekapDataLoaded(res) {
   // Validasi Kategori Pilkada: Jika data Pilkada di master data sudah terdefinisi,
   // pastikan hanya TPS Pilkada yang dimasukkan (mencegah anomali 1205 TPS Pemilu dari deployment GAS lama)
   if (currentRekapKategori === 'PILKADA' && masterDataCache && masterDataCache.wilayahPilkada && masterDataCache.wilayahPilkada.length > 0) {
+    const curFilterKec = document.getElementById('filterRekapKecamatan')?.value || '';
+    const curFilterDesa = document.getElementById('filterRekapDesa')?.value || '';
+    const normCurKec = curFilterKec ? curFilterKec.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+    const normCurDesa = curFilterDesa ? curFilterDesa.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+
     const pilkadaTpsSet = new Set();
     const pilkadaTpsTemplate = new Map();
     masterDataCache.wilayahPilkada.forEach(k => {
+      const kNorm = String(k.kecamatan || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+      if (normCurKec && kNorm !== normCurKec) return;
+
       (k.desaList || []).forEach(d => {
+        const dNorm = String(d.desa || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+        if (normCurDesa && dNorm !== normCurDesa) return;
+
         (d.tpsList || []).forEach(t => {
           const kKey = normKey(k.kecamatan, d.desa, t);
           pilkadaTpsSet.add(kKey);
@@ -2489,9 +2513,15 @@ function evaluateRecordForCategory(rec, kategori = currentRekapKategori) {
 function recalculateRekapForCurrentCategory() {
   if (!allRekapRecords || allRekapRecords.length === 0) return;
 
+  const curFilterKec = document.getElementById('filterRekapKecamatan')?.value || '';
+  const curFilterDesa = document.getElementById('filterRekapDesa')?.value || '';
+  const normFilterKec = curFilterKec ? curFilterKec.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+  const normFilterDesa = curFilterDesa ? curFilterDesa.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+
   let countLengkap = 0;
   let countBelum = 0;
   let countKosong = 0;
+  let scopedTotal = 0;
 
   allRekapRecords.forEach(rec => {
     const evalResult = evaluateRecordForCategory(rec, currentRekapKategori);
@@ -2499,9 +2529,18 @@ function recalculateRekapForCurrentCategory() {
     rec.catCompleteCount = evalResult.completeCount;
     rec.catTotalTarget = evalResult.totalTarget;
 
-    if (rec.catStatus === 'LENGKAP') countLengkap++;
-    else if (rec.catStatus === 'BELUM LENGKAP') countBelum++;
-    else countKosong++;
+    const recKecNorm = String(rec.kecamatan || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+    const recDesaNorm = String(rec.desa || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+
+    const matchesKec = !normFilterKec || (recKecNorm === normFilterKec);
+    const matchesDesa = !normFilterDesa || (recDesaNorm === normFilterDesa);
+
+    if (matchesKec && matchesDesa) {
+      scopedTotal++;
+      if (rec.catStatus === 'LENGKAP') countLengkap++;
+      else if (rec.catStatus === 'BELUM LENGKAP') countBelum++;
+      else countKosong++;
+    }
   });
 
   const statTotal = document.getElementById('statTotalTPS');
@@ -2509,7 +2548,7 @@ function recalculateRekapForCurrentCategory() {
   const statBelum = document.getElementById('statBelumLengkap');
   const statKosong = document.getElementById('statKosong');
 
-  if (statTotal) statTotal.textContent = allRekapRecords.length;
+  if (statTotal) statTotal.textContent = scopedTotal;
   if (statLengkap) statLengkap.textContent = countLengkap;
   if (statBelum) statBelum.textContent = countBelum;
   if (statKosong) statKosong.textContent = countKosong;
@@ -2714,8 +2753,18 @@ function renderRekapWilayah() {
   if (!container) return;
 
   const data = getAggregatedRekapKecamatan();
+  const selectedKec = document.getElementById('filterRekapKecamatan')?.value || '';
+  const selectedDesa = document.getElementById('filterRekapDesa')?.value || '';
+  const normSelectedKec = selectedKec ? selectedKec.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+  const normSelectedDesa = selectedDesa ? selectedDesa.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
 
   let filtered = data.filter(k => {
+    // 1. Filter dropdown Kecamatan di atasnya
+    if (normSelectedKec) {
+      const kNorm = String(k.kecamatan || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+      if (kNorm !== normSelectedKec) return false;
+    }
+
     if (currentWilayahFilter === 'PENDING') {
       return k.kosong > 0 || k.belumLengkap > 0;
     }
@@ -2730,6 +2779,15 @@ function renderRekapWilayah() {
     }
     return true;
   });
+
+  // Jika Desa dipilih pada dropdown atas, filter juga rincian desa di dalam kecamatan
+  if (normSelectedDesa) {
+    filtered = filtered.map(k => {
+      const copy = Object.assign({}, k);
+      copy.desaList = (k.desaList || []).filter(d => String(d.desa || '').trim().toUpperCase().replace(/[\s\-_]+/g, '') === normSelectedDesa);
+      return copy;
+    });
+  }
 
   if (searchKeyword) {
     filtered = filtered.filter(k => {
@@ -2872,11 +2930,31 @@ function renderRekapList() {
 
   if (!container) return;
 
+  const selectedKec = document.getElementById('filterRekapKecamatan')?.value || '';
+  const selectedDesa = document.getElementById('filterRekapDesa')?.value || '';
+  const normSelectedKec = selectedKec ? selectedKec.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+  const normSelectedDesa = selectedDesa ? selectedDesa.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+
   let filtered = allRekapRecords.filter(r => {
+    // 1. Filter dropdown Kecamatan di atasnya
+    if (normSelectedKec) {
+      const recKecNorm = String(r.kecamatan || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+      if (recKecNorm !== normSelectedKec) return false;
+    }
+
+    // 2. Filter dropdown Desa di atasnya
+    if (normSelectedDesa) {
+      const recDesaNorm = String(r.desa || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+      if (recDesaNorm !== normSelectedDesa) return false;
+    }
+
+    // 3. Filter status KPI
     const status = r.catStatus || r.status;
     if (currentRekapFilterStatus !== 'ALL' && status !== currentRekapFilterStatus) {
       return false;
     }
+
+    // 4. Filter keyword pencarian
     if (searchKeyword) {
       const matchKec = r.kecamatan.toLowerCase().includes(searchKeyword);
       const matchDesa = r.desa.toLowerCase().includes(searchKeyword);
@@ -2906,17 +2984,22 @@ function renderRekapList() {
   const displayList = [...activeList, ...emptyList.slice(0, 200)];
 
   if (countLabel) {
+    let scopeText = '';
+    if (selectedKec) {
+      scopeText = ` • ${selectedDesa ? 'Desa ' + selectedDesa + ', ' : ''}Kec. ${selectedKec}`;
+    }
     if (filtered.length > displayList.length) {
-      countLabel.textContent = `Menampilkan ${displayList.length} dari ${filtered.length} TPS (TPS Berisi Ditampilkan Teratas)`;
+      countLabel.textContent = `Menampilkan ${displayList.length} dari ${filtered.length} TPS${scopeText} (TPS Berisi Ditampilkan Teratas)`;
     } else {
-      countLabel.textContent = `Menampilkan ${filtered.length} TPS`;
+      countLabel.textContent = `Menampilkan ${filtered.length} TPS${scopeText}`;
     }
   }
 
   if (filtered.length === 0) {
+    const scopeMsg = selectedKec ? ` di ${selectedDesa ? 'Desa ' + selectedDesa + ', ' : ''}Kecamatan ${selectedKec}` : '';
     container.innerHTML = `
       <div style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 13px;">
-        Tidak ada data TPS yang cocok dengan kriteria filter.
+        Tidak ada data TPS yang cocok dengan kriteria filter${scopeMsg}.
       </div>
     `;
     return;
