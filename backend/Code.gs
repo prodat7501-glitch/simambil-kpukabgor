@@ -61,6 +61,7 @@ function escapeSpreadsheetFormula(val) {
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) ? e.parameter.action : '';
+    const isRefresh = (e && e.parameter && (e.parameter.refresh === '1' || e.parameter.nocache === '1'));
 
     if (action === 'getMasterData') {
       if (!isAuthorized(e)) {
@@ -70,7 +71,7 @@ function doGet(e) {
           message: 'Akses Ditolak: Token otentikasi tidak valid atau belum disertakan.'
         });
       }
-      const data = getInitialMasterData();
+      const data = getInitialMasterData(isRefresh);
       return createJsonResponse(data);
     }
 
@@ -85,7 +86,7 @@ function doGet(e) {
       const filterKec = e.parameter.kecamatan || '';
       const filterDesa = e.parameter.desa || '';
       const filterKategori = e.parameter.kategori || '';
-      const data = getMonitoringSummary(filterKec, filterDesa, filterKategori);
+      const data = getMonitoringSummary(filterKec, filterDesa, filterKategori, isRefresh);
       return createJsonResponse(data);
     }
 
@@ -184,21 +185,67 @@ function getAppSpreadsheet() {
 }
 
 /**
+ * Helper mencari sheet dengan toleransi variasi penamaan (spasi, strip, underscore, huruf besar/kecil)
+ * Contoh: "Master_Wilayah_Pilkada" cocok dengan "Master Wilayah Pilkada", "master_wilayah_pilkada", dsb.
+ */
+function findSheetFlexible(ss, targetCanonicalName) {
+  if (!ss) return null;
+  const exact = ss.getSheetByName(targetCanonicalName);
+  if (exact) return exact;
+
+  const normTarget = String(targetCanonicalName || '').toLowerCase().replace(/[\s\-_]+/g, '');
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    const sName = sheets[i].getName().trim().toLowerCase().replace(/[\s\-_]+/g, '');
+    if (sName === normTarget) {
+      return sheets[i];
+    }
+  }
+  return null;
+}
+
+/**
+ * Deteksi indeks kolom Kecamatan, Desa, dan TPS secara dinamis dari baris header (Baris 1)
+ */
+function detectWilayahColumnIndices(headerRow) {
+  let colKec = 1;
+  let colDesa = 2;
+  let colTps = 3;
+
+  if (headerRow && headerRow.length > 0) {
+    for (let c = 0; c < headerRow.length; c++) {
+      const h = String(headerRow[c] || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+      if (h.includes('KEC')) {
+        colKec = c;
+      } else if (h.includes('DESA') || h.includes('KELURAHAN')) {
+        colDesa = c;
+      } else if (h.includes('TPS') && !h.includes('ID')) {
+        colTps = c;
+      }
+    }
+  }
+
+  return { colKec: colKec, colDesa: colDesa, colTps: colTps };
+}
+
+/**
  * ==============================================================================
  * API 1: getInitialMasterData()
  * SOT: 05-API-SPEC.md (Section 1)
  * ==============================================================================
  */
-function getInitialMasterData() {
+function getInitialMasterData(bypassCache) {
   try {
-    // 0. Cek CacheService Apps Script untuk respon super cepat (<50ms)
+    // 0. Cek CacheService Apps Script untuk respon super cepat (<50ms) jika bukan refresh manual
     const cache = CacheService.getScriptCache();
-    const cachedData = cache.get('CACHE_MASTER_DATA_V1');
-    if (cachedData) {
-      try {
-        return JSON.parse(cachedData);
-      } catch (errJson) {
-        Logger.log('Cache parse failed: ' + errJson.message);
+    if (!bypassCache) {
+      const cachedData = cache.get('CACHE_MASTER_DATA_V2');
+      if (cachedData) {
+        try {
+          return JSON.parse(cachedData);
+        } catch (errJson) {
+          Logger.log('Cache parse failed: ' + errJson.message);
+        }
       }
     }
 
@@ -207,8 +254,8 @@ function getInitialMasterData() {
       return getFallbackMasterData();
     }
 
-    const sheetKategori = ss.getSheetByName(SHEETS.KATEGORI);
-    const sheetWilayah = ss.getSheetByName(SHEETS.WILAYAH);
+    const sheetKategori = findSheetFlexible(ss, SHEETS.KATEGORI) || ss.getSheetByName(SHEETS.KATEGORI);
+    const sheetWilayah = findSheetFlexible(ss, SHEETS.WILAYAH) || ss.getSheetByName(SHEETS.WILAYAH);
 
     if (!sheetKategori || !sheetWilayah) {
       return getFallbackMasterData();
@@ -232,13 +279,14 @@ function getInitialMasterData() {
 
     // 2. Ambil data Wilayah Pemilu dari Sheet Master_Wilayah (1.205 TPS)
     const dataWilayah = sheetWilayah.getDataRange().getValues();
+    const colPemilu = detectWilayahColumnIndices(dataWilayah[0]);
     const wilayahTree = {};
     let totalTpsPemilu = 0;
 
     for (let i = 1; i < dataWilayah.length; i++) {
-      const kec = String(dataWilayah[i][1] || '').trim().toUpperCase();
-      const desa = String(dataWilayah[i][2] || '').trim().toUpperCase();
-      const tps = formatTPS(String(dataWilayah[i][3] || '').trim());
+      const kec = String(dataWilayah[i][colPemilu.colKec] || '').trim().toUpperCase();
+      const desa = String(dataWilayah[i][colPemilu.colDesa] || '').trim().toUpperCase();
+      const tps = formatTPS(String(dataWilayah[i][colPemilu.colTps] || '').trim());
 
       if (!kec || !desa || !tps) continue;
 
@@ -251,7 +299,7 @@ function getInitialMasterData() {
     }
 
     // 3. Ambil data Wilayah Pilkada dari Sheet Terpisah Master_Wilayah_Pilkada
-    let sheetWilayahPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+    let sheetWilayahPilkada = findSheetFlexible(ss, SHEETS.WILAYAH_PILKADA);
     if (!sheetWilayahPilkada) {
       sheetWilayahPilkada = ss.insertSheet(SHEETS.WILAYAH_PILKADA);
       ensureSheetHeaders(sheetWilayahPilkada, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'JUMLAH_DPT']);
@@ -263,10 +311,11 @@ function getInitialMasterData() {
 
     if (sheetWilayahPilkada && sheetWilayahPilkada.getLastRow() > 1) {
       const dataWilayahPilkada = sheetWilayahPilkada.getDataRange().getValues();
+      const colPilkada = detectWilayahColumnIndices(dataWilayahPilkada[0]);
       for (let i = 1; i < dataWilayahPilkada.length; i++) {
-        const kec = String(dataWilayahPilkada[i][1] || '').trim().toUpperCase();
-        const desa = String(dataWilayahPilkada[i][2] || '').trim().toUpperCase();
-        const tps = formatTPS(String(dataWilayahPilkada[i][3] || '').trim());
+        const kec = String(dataWilayahPilkada[i][colPilkada.colKec] || '').trim().toUpperCase();
+        const desa = String(dataWilayahPilkada[i][colPilkada.colDesa] || '').trim().toUpperCase();
+        const tps = formatTPS(String(dataWilayahPilkada[i][colPilkada.colTps] || '').trim());
 
         if (!kec || !desa || !tps) continue;
 
@@ -327,14 +376,16 @@ function getInitialMasterData() {
       wilayahPilkada: wilayahPilkadaList
     };
 
-    // Simpan ke CacheService Apps Script selama 6 jam (21600 detik)
-    try {
-      const jsonStr = JSON.stringify(result);
-      if (jsonStr.length < 100000) {
-        cache.put('CACHE_MASTER_DATA_V1', jsonStr, 21600);
+    // Simpan ke CacheService Apps Script selama 6 jam (21600 detik) jika bukan bypass
+    if (!bypassCache) {
+      try {
+        const jsonStr = JSON.stringify(result);
+        if (jsonStr.length < 100000) {
+          cache.put('CACHE_MASTER_DATA_V2', jsonStr, 21600);
+        }
+      } catch (errCache) {
+        Logger.log('Cache put failed: ' + errCache.message);
       }
-    } catch (errCache) {
-      Logger.log('Cache put failed: ' + errCache.message);
     }
 
     return result;
@@ -491,15 +542,15 @@ function uploadCompiledDocument(payload) {
  * SOT: 05-API-SPEC.md (Section 3) & 06-BUSINESS-RULES.md (Section 4)
  * ==============================================================================
  */
-function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori) {
+function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori, bypassCache) {
   try {
     const isGlobal = !filterKecamatan && !filterDesa;
     const catUpper = String(filterKategori || '').trim().toUpperCase();
     const cache = CacheService.getScriptCache();
 
-    // 0. Cek CacheService Apps Script
-    const cacheKey = 'CACHE_MON_V5_' + (catUpper || 'ALL') + '_' + (isGlobal ? 'GLOBAL' : (filterKecamatan + '_' + filterDesa));
-    if (isGlobal) {
+    // 0. Cek CacheService Apps Script jika bukan bypass cache
+    const cacheKey = 'CACHE_MON_V6_' + (catUpper || 'ALL') + '_' + (isGlobal ? 'GLOBAL' : (filterKecamatan + '_' + filterDesa));
+    if (isGlobal && !bypassCache) {
       const cached = cache.get(cacheKey);
       if (cached) {
         try {
@@ -650,12 +701,13 @@ function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori) {
     // Jika Pilkada dan sheet Master_Wilayah_Pilkada tersedia data, gunakan Master_Wilayah_Pilkada
     let targetSheetWilayah = sheetWilayah;
     if (catUpper === 'PILKADA') {
-      const sheetPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+      const sheetPilkada = findSheetFlexible(ss, SHEETS.WILAYAH_PILKADA) || ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
       if (sheetPilkada && sheetPilkada.getLastRow() > 1) {
         targetSheetWilayah = sheetPilkada;
       }
     }
     const wilayahData = targetSheetWilayah.getDataRange().getValues();
+    const colIndices = detectWilayahColumnIndices(wilayahData[0]);
     const records = [];
     const processedKeys = new Set();
     let countLengkap = 0;
@@ -666,9 +718,9 @@ function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori) {
     const normFilterDesa = filterDesa ? filterDesa.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
 
     for (let i = 1; i < wilayahData.length; i++) {
-      const kec = String(wilayahData[i][1] || '').trim().toUpperCase();
-      const desa = String(wilayahData[i][2] || '').trim().toUpperCase();
-      const tps = formatTPS(String(wilayahData[i][3] || '').trim());
+      const kec = String(wilayahData[i][colIndices.colKec] || '').trim().toUpperCase();
+      const desa = String(wilayahData[i][colIndices.colDesa] || '').trim().toUpperCase();
+      const tps = formatTPS(String(wilayahData[i][colIndices.colTps] || '').trim());
 
       if (!kec || !desa || !tps) continue;
 
@@ -1029,14 +1081,14 @@ function setupDatabase() {
   }
 
   // 2. Setup Master_Wilayah (Pemilu - Non-destructive: data 1.205 TPS tetap aman)
-  let sheetWilayah = ss.getSheetByName(SHEETS.WILAYAH);
+  let sheetWilayah = findSheetFlexible(ss, SHEETS.WILAYAH) || ss.getSheetByName(SHEETS.WILAYAH);
   if (!sheetWilayah) {
     sheetWilayah = ss.insertSheet(SHEETS.WILAYAH);
   }
   ensureSheetHeaders(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'JUMLAH_DPT']);
 
   // 2b. Setup Master_Wilayah_Pilkada (Sheet Terpisah Khusus TPS Pilkada)
-  let sheetWilayahPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+  let sheetWilayahPilkada = findSheetFlexible(ss, SHEETS.WILAYAH_PILKADA) || ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
   if (!sheetWilayahPilkada) {
     sheetWilayahPilkada = ss.insertSheet(SHEETS.WILAYAH_PILKADA);
   }

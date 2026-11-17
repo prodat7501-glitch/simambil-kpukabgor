@@ -629,16 +629,17 @@ function syncPagesStateWithLembaga() {
   }
 }
 
-async function loadMasterData() {
+async function loadMasterData(isManualRefresh = false) {
   const apiUrl = AppConfig.getApiUrl();
   const authToken = AppConfig.getAuthToken ? AppConfig.getAuthToken() : '';
   const tokenQuery = authToken ? `&token=${encodeURIComponent(authToken)}` : '';
+  const refreshQuery = isManualRefresh ? `&refresh=1&_t=${Date.now()}` : `&_t=${Date.now()}`;
 
   // 1. Coba endpoint utama (Proxy /api/gas jika di Vercel atau Direct URL)
   if (apiUrl) {
     try {
-      const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}action=getMasterData${tokenQuery}`;
-      const res = await fetchWithTimeout(endpoint, { redirect: 'follow' }, 12000);
+      const endpoint = `${apiUrl}${apiUrl.includes('?') ? '&' : '?'}action=getMasterData${tokenQuery}${refreshQuery}`;
+      const res = await fetchWithTimeout(endpoint, { redirect: 'follow', cache: 'no-store' }, 12000);
       const json = await res.json();
       if (json && json.status === 'success') {
         handleMasterDataSuccess(json);
@@ -655,8 +656,8 @@ async function loadMasterData() {
   // 2. Fallback ke Direct URL jika endpoint utama adalah proxy
   if (apiUrl !== DIRECT_GAS_URL && typeof DIRECT_GAS_URL !== 'undefined') {
     try {
-      const directEndpoint = `${DIRECT_GAS_URL}?action=getMasterData${tokenQuery}`;
-      const res = await fetchWithTimeout(directEndpoint, { redirect: 'follow' }, 12000);
+      const directEndpoint = `${DIRECT_GAS_URL}?action=getMasterData${tokenQuery}${refreshQuery}`;
+      const res = await fetchWithTimeout(directEndpoint, { redirect: 'follow', cache: 'no-store' }, 12000);
       const json = await res.json();
       if (json && json.status === 'success') {
         handleMasterDataSuccess(json);
@@ -2155,6 +2156,20 @@ function onRekapKecamatanChange() {
   syncAllPickers();
 }
 
+async function refreshAllData() {
+  showAppToast('Menyinkronkan master wilayah & rekapitulasi...', 'info', 2500);
+  try {
+    localStorage.removeItem(STORAGE_KEY_REKAP);
+    localStorage.removeItem(STORAGE_KEY_MASTER);
+  } catch (e) {}
+
+  await Promise.allSettled([
+    loadMasterData(true),
+    loadRekapData(true)
+  ]);
+  showAppToast('Data mutakhir berhasil disinkronkan dari Spreadsheet!', 'success', 2500);
+}
+
 async function loadRekapData(isManualRefresh = false) {
   const filterKec = document.getElementById('filterRekapKecamatan')?.value || '';
   const filterDesa = document.getElementById('filterRekapDesa')?.value || '';
@@ -2170,6 +2185,7 @@ async function loadRekapData(isManualRefresh = false) {
     kecamatan: filterKec,
     desa: filterDesa,
     kategori: currentRekapKategori,
+    refresh: isManualRefresh ? '1' : '0',
     _t: Date.now().toString()
   });
 
