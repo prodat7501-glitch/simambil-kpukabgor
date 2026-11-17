@@ -63,12 +63,11 @@ function getKategoriForLembaga(kode) {
 }
 
 function getTargetKeysForCategory(kategori) {
-  if (kategori === 'PEMILU') return ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB'];
   if (kategori === 'PILKADA') return ['PILGUB', 'PILBUP'];
-  return ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+  return ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB'];
 }
 
-let currentRekapKategori = 'PEMILU'; // 'PEMILU', 'PILKADA', atau 'SEMUA'
+let currentRekapKategori = 'PEMILU'; // 'PEMILU' atau 'PILKADA'
 
 let pagesState = []; // [{ page: 1, dataUrl: null, rotation: 0 }, ...]
 let activeSlotIndex = null;
@@ -85,6 +84,11 @@ const sessionUploadedDocsMap = new Map(); // Cache URL dokumen sesi aktif: "KEC|
 // Storage Keys untuk Stale-While-Revalidate (SWR) Instant Hydration
 const STORAGE_KEY_MASTER = 'SIMAMBIL_MASTER_DATA_CACHE_V2';
 const STORAGE_KEY_REKAP = 'SIMAMBIL_REKAP_SUMMARY_CACHE_V3';
+
+function getRekapStorageKey(kategori) {
+  const cat = (kategori || currentRekapKategori || 'PEMILU').toUpperCase();
+  return `SIMAMBIL_REKAP_SUMMARY_${cat}_V5`;
+}
 
 /**
  * Helper Fetch dengan Timeout AbortController
@@ -127,7 +131,7 @@ function hydrateFromLocalCache() {
   }
 
   try {
-    const cachedRekapRaw = localStorage.getItem(STORAGE_KEY_REKAP);
+    const cachedRekapRaw = localStorage.getItem(getRekapStorageKey('PEMILU')) || localStorage.getItem(STORAGE_KEY_REKAP);
     if (cachedRekapRaw) {
       const cachedRekap = JSON.parse(cachedRekapRaw);
       if (cachedRekap && cachedRekap.status === 'success' && cachedRekap.summary) {
@@ -678,8 +682,8 @@ async function loadMasterData(isManualRefresh = false) {
   }
 }
 
-function getActiveWilayahList() {
-  const kategori = document.getElementById('selectKategoriPemilihan')?.value || '';
+function getActiveWilayahList(kategoriOverride) {
+  const kategori = (kategoriOverride || document.getElementById('selectKategoriPemilihan')?.value || currentRekapKategori || '').toUpperCase();
   if (kategori === 'PILKADA' && masterDataCache && masterDataCache.wilayahPilkada && masterDataCache.wilayahPilkada.length > 0) {
     return masterDataCache.wilayahPilkada;
   }
@@ -2133,15 +2137,17 @@ function onUploadSuccess(res, meta = {}) {
  * SOT: 03-UI-GUIDELINE.md & 05-API-SPEC.md (GET ?action=getMonitoringSummary)
  * ==============================================================================
  */
-function onRekapKecamatanChange() {
+function onRekapKecamatanChange(skipFetch = false) {
   const filterKec = document.getElementById('filterRekapKecamatan')?.value || '';
   const filterDesa = document.getElementById('filterRekapDesa');
 
   if (!filterDesa) return;
+  const currentDesa = filterDesa.value;
   filterDesa.innerHTML = '<option value="">-- Semua Desa --</option>';
 
   if (filterKec && masterDataCache) {
-    const kecObj = masterDataCache.wilayah.find(w => w.kecamatan === filterKec);
+    const activeWil = getActiveWilayahList();
+    const kecObj = activeWil.find(w => w.kecamatan === filterKec);
     if (kecObj && kecObj.desaList) {
       kecObj.desaList.forEach(d => {
         const opt = document.createElement('option');
@@ -2149,10 +2155,15 @@ function onRekapKecamatanChange() {
         opt.textContent = d.desa;
         filterDesa.appendChild(opt);
       });
+      if (currentDesa && kecObj.desaList.some(d => d.desa === currentDesa)) {
+        filterDesa.value = currentDesa;
+      }
     }
   }
 
-  loadRekapData();
+  if (!skipFetch) {
+    loadRekapData();
+  }
   syncAllPickers();
 }
 
@@ -2160,6 +2171,8 @@ async function refreshAllData() {
   showAppToast('Menyinkronkan master wilayah & rekapitulasi...', 'info', 2500);
   try {
     localStorage.removeItem(STORAGE_KEY_REKAP);
+    localStorage.removeItem(getRekapStorageKey('PEMILU'));
+    localStorage.removeItem(getRekapStorageKey('PILKADA'));
     localStorage.removeItem(STORAGE_KEY_MASTER);
   } catch (e) {}
 
@@ -2207,7 +2220,7 @@ async function loadRekapData(isManualRefresh = false) {
         onRekapDataLoaded(json);
         if (isGlobalFilter) {
           try {
-            localStorage.setItem(STORAGE_KEY_REKAP, JSON.stringify(json));
+            localStorage.setItem(getRekapStorageKey(currentRekapKategori), JSON.stringify(json));
           } catch (eStorage) {}
         }
         if (isManualRefresh) {
@@ -2233,7 +2246,7 @@ async function loadRekapData(isManualRefresh = false) {
         onRekapDataLoaded(json);
         if (isGlobalFilter) {
           try {
-            localStorage.setItem(STORAGE_KEY_REKAP, JSON.stringify(json));
+            localStorage.setItem(getRekapStorageKey(currentRekapKategori), JSON.stringify(json));
           } catch (eStorage) {}
         }
         if (isManualRefresh) {
@@ -2257,6 +2270,42 @@ async function loadRekapData(isManualRefresh = false) {
   }
 }
 
+function buildInitialRecordsFromActiveMaster(kategori = currentRekapKategori) {
+  const activeWil = getActiveWilayahList(kategori);
+  if (!activeWil || activeWil.length === 0) return false;
+
+  const targetKeys = getTargetKeysForCategory(kategori);
+  const records = [];
+
+  activeWil.forEach(k => {
+    (k.desaList || []).forEach(d => {
+      (d.tpsList || []).forEach(tps => {
+        records.push({
+          kecamatan: k.kecamatan,
+          desa: d.desa,
+          tps: tps,
+          status: 'KOSONG',
+          catStatus: 'KOSONG',
+          catCompleteCount: 0,
+          catTotalTarget: targetKeys.length,
+          totalLengkap: 0,
+          totalUpload: 0,
+          targetTotal: targetKeys.length,
+          rincian: {},
+          detailHalaman: {}
+        });
+      });
+    });
+  });
+
+  if (records.length > 0) {
+    allRekapRecords = records;
+    recalculateRekapForCurrentCategory();
+    return true;
+  }
+  return false;
+}
+
 function onRekapDataLoaded(res) {
   if (!res || res.status !== 'success') return;
 
@@ -2278,12 +2327,13 @@ function onRekapDataLoaded(res) {
 
   // Deduplikasi & Normalisasi Records: Menghindari anomali duplikasi seperti TALAGA JAYA vs TALAGA-JAYA
   const dedupedMap = new Map();
+  const activeWil = getActiveWilayahList();
   rawRecords.forEach(rec => {
     const key = normKey(rec.kecamatan, rec.desa, rec.tps);
     if (!dedupedMap.has(key)) {
-      // Normalisasi nama kecamatan ke bentuk baku dari masterDataCache jika tersedia
-      if (masterDataCache && masterDataCache.wilayah) {
-        const canonicalKecObj = masterDataCache.wilayah.find(w => w.kecamatan.replace(/[\s\-_]+/g, '') === rec.kecamatan.replace(/[\s\-_]+/g, ''));
+      // Normalisasi nama kecamatan ke bentuk baku dari master data jika tersedia
+      if (activeWil && activeWil.length > 0) {
+        const canonicalKecObj = activeWil.find(w => w.kecamatan.replace(/[\s\-_]+/g, '') === rec.kecamatan.replace(/[\s\-_]+/g, ''));
         if (canonicalKecObj) {
           rec.kecamatan = canonicalKecObj.kecamatan;
           const canonicalDesaObj = canonicalKecObj.desaList?.find(d => d.desa.replace(/[\s\-_]+/g, '') === rec.desa.replace(/[\s\-_]+/g, ''));
@@ -2301,10 +2351,50 @@ function onRekapDataLoaded(res) {
     }
   });
 
-  const cleanRecords = Array.from(dedupedMap.values());
+  let cleanRecords = Array.from(dedupedMap.values());
+
+  // Validasi Kategori Pilkada: Jika data Pilkada di master data sudah terdefinisi,
+  // pastikan hanya TPS Pilkada yang dimasukkan (mencegah anomali 1205 TPS Pemilu dari deployment GAS lama)
+  if (currentRekapKategori === 'PILKADA' && masterDataCache && masterDataCache.wilayahPilkada && masterDataCache.wilayahPilkada.length > 0) {
+    const pilkadaTpsSet = new Set();
+    const pilkadaTpsTemplate = new Map();
+    masterDataCache.wilayahPilkada.forEach(k => {
+      (k.desaList || []).forEach(d => {
+        (d.tpsList || []).forEach(t => {
+          const kKey = normKey(k.kecamatan, d.desa, t);
+          pilkadaTpsSet.add(kKey);
+          pilkadaTpsTemplate.set(kKey, { kecamatan: k.kecamatan, desa: d.desa, tps: t });
+        });
+      });
+    });
+
+    if (pilkadaTpsSet.size > 0) {
+      const filtered = cleanRecords.filter(rec => pilkadaTpsSet.has(normKey(rec.kecamatan, rec.desa, rec.tps)));
+      const existingKeys = new Set(filtered.map(rec => normKey(rec.kecamatan, rec.desa, rec.tps)));
+      
+      pilkadaTpsTemplate.forEach((val, kKey) => {
+        if (!existingKeys.has(kKey)) {
+          filtered.push({
+            kecamatan: val.kecamatan,
+            desa: val.desa,
+            tps: val.tps,
+            status: 'KOSONG',
+            catStatus: 'KOSONG',
+            totalLengkap: 0,
+            totalUpload: 0,
+            targetTotal: 2,
+            rincian: { 'PILGUB': false, 'PILBUP': false },
+            detailHalaman: {}
+          });
+        }
+      });
+      cleanRecords = filtered;
+    }
+  }
+
   allRekapRecords = cleanRecords;
 
-  // Evaluasi metrik ringkasan dan status per record berbasis kategori aktif (Pemilu 5 / Pilkada 2 / Semua 7)
+  // Evaluasi metrik ringkasan dan status per record berbasis kategori aktif (Pemilu 5 / Pilkada 2)
   recalculateRekapForCurrentCategory();
 }
 
@@ -2316,13 +2406,11 @@ function setRekapCategory(kategori) {
   if (!kategori) kategori = 'PEMILU';
   currentRekapKategori = kategori;
 
-  // 1. Sinkronisasi segmented buttons
+  // 1. Sinkronisasi segmented buttons (Hanya Pemilu & Pilkada)
   const tabPemilu = document.getElementById('btnCatPemilu');
   const tabPilkada = document.getElementById('btnCatPilkada');
-  const tabSemua = document.getElementById('btnCatSemua');
   if (tabPemilu) tabPemilu.classList.toggle('active', kategori === 'PEMILU');
   if (tabPilkada) tabPilkada.classList.toggle('active', kategori === 'PILKADA');
-  if (tabSemua) tabSemua.classList.toggle('active', kategori === 'SEMUA');
 
   // 2. Sinkronisasi dropdown filter di Filter Card
   const filterSelect = document.getElementById('filterRekapKategori');
@@ -2333,15 +2421,28 @@ function setRekapCategory(kategori) {
   // 3. Update Label Kartu KPI Lengkap
   const labelEl = document.getElementById('statLengkapLabel');
   if (labelEl) {
-    if (kategori === 'PEMILU') labelEl.textContent = '🟢 Lengkap (5/5)';
-    else if (kategori === 'PILKADA') labelEl.textContent = '🟢 Lengkap (2/2)';
-    else labelEl.textContent = '🟢 Lengkap (7/7)';
+    if (kategori === 'PILKADA') labelEl.textContent = '🟢 Lengkap (2/2)';
+    else labelEl.textContent = '🟢 Lengkap (5/5)';
   }
 
+  // Perbarui dropdown filter kecamatan & desa rekap
+  onRekapKecamatanChange(true);
   syncAllPickers();
 
-  // 4. Hitung ulang rekapitulasi lokal secara instan (0ms)
-  recalculateRekapForCurrentCategory();
+  // 4. Hidrasi instan dari cache lokal kategori jika tersedia (0ms)
+  const catCacheRaw = localStorage.getItem(getRekapStorageKey(kategori));
+  if (catCacheRaw) {
+    try {
+      const parsed = JSON.parse(catCacheRaw);
+      if (parsed && parsed.status === 'success') {
+        onRekapDataLoaded(parsed);
+      }
+    } catch (e) {}
+  } else if (kategori === 'PILKADA' && masterDataCache && masterDataCache.wilayahPilkada && masterDataCache.wilayahPilkada.length > 0) {
+    buildInitialRecordsFromActiveMaster('PILKADA');
+  } else {
+    recalculateRekapForCurrentCategory();
+  }
 
   // 5. Sinkronisasi latar belakang dengan server jika menggunakan sheet terpisah Master_Wilayah_Pilkada
   loadRekapData();
@@ -2415,9 +2516,8 @@ function recalculateRekapForCurrentCategory() {
 
   const labelEl = document.getElementById('statLengkapLabel');
   if (labelEl) {
-    if (currentRekapKategori === 'PEMILU') labelEl.textContent = '🟢 Lengkap (5/5)';
-    else if (currentRekapKategori === 'PILKADA') labelEl.textContent = '🟢 Lengkap (2/2)';
-    else labelEl.textContent = '🟢 Lengkap (7/7)';
+    if (currentRekapKategori === 'PILKADA') labelEl.textContent = '🟢 Lengkap (2/2)';
+    else labelEl.textContent = '🟢 Lengkap (5/5)';
   }
 
   // Re-agregasi kecamatan otomatis dari records terverifikasi agar total kecamatan murni 19 tanpa duplikat
@@ -2569,8 +2669,9 @@ function getAggregatedRekapKecamatan(force = false) {
   }
 
   // Fallback awal: Buat struktur ringkasan dari Master Data jika rekapitulasi belum diterima dari server
-  if (masterDataCache && masterDataCache.wilayah && masterDataCache.wilayah.length > 0) {
-    const list = masterDataCache.wilayah.map(k => {
+  const fallbackWilayah = getActiveWilayahList();
+  if (fallbackWilayah && fallbackWilayah.length > 0) {
+    const list = fallbackWilayah.map(k => {
       const desaList = (k.desaList || []).map(d => {
         const tpsList = d.tpsList || [];
         return {

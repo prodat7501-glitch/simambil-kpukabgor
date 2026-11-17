@@ -185,8 +185,8 @@ function getAppSpreadsheet() {
 }
 
 /**
- * Helper mencari sheet dengan toleransi variasi penamaan (spasi, strip, underscore, huruf besar/kecil)
- * Contoh: "Master_Wilayah_Pilkada" cocok dengan "Master Wilayah Pilkada", "master_wilayah_pilkada", dsb.
+ * Helper mencari sheet dengan toleransi tinggi terhadap variasi penamaan
+ * Contoh: "Master_Wilayah_Pilkada" cocok dengan "Master Wilayah Pilkada", "Wilayah Pilkada", "Master Pilkada", "Pilkada", dsb.
  */
 function findSheetFlexible(ss, targetCanonicalName) {
   if (!ss) return null;
@@ -195,12 +195,35 @@ function findSheetFlexible(ss, targetCanonicalName) {
 
   const normTarget = String(targetCanonicalName || '').toLowerCase().replace(/[\s\-_]+/g, '');
   const sheets = ss.getSheets();
+  
+  // 1. Coba pencocokan tepat tanpa memperhatikan spasi/strip/kapitalisasi
   for (let i = 0; i < sheets.length; i++) {
     const sName = sheets[i].getName().trim().toLowerCase().replace(/[\s\-_]+/g, '');
     if (sName === normTarget) {
       return sheets[i];
     }
   }
+
+  // 2. Toleransi substring: Jika mencari sheet Pilkada, cocokkan sheet manapun yang mengandung kata "pilkada"
+  if (normTarget.includes('pilkada')) {
+    for (let i = 0; i < sheets.length; i++) {
+      const sName = sheets[i].getName().trim().toLowerCase();
+      if (sName.includes('pilkada')) {
+        return sheets[i];
+      }
+    }
+  }
+
+  // 3. Toleransi Master_Wilayah (Pemilu): Cocokkan jika mengandung "wilayah" dan bukan pilkada
+  if (normTarget === 'masterwilayah') {
+    for (let i = 0; i < sheets.length; i++) {
+      const sName = sheets[i].getName().trim().toLowerCase();
+      if (sName.includes('wilayah') && !sName.includes('pilkada')) {
+        return sheets[i];
+      }
+    }
+  }
+
   return null;
 }
 

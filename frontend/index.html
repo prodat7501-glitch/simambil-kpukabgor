@@ -258,7 +258,6 @@
           <select id="filterRekapKategori" class="visually-hidden-select" onchange="onRekapKategoriFilterChanged(); syncAllPickers();">
             <option value="PEMILU" selected>🏛️ Pemilu (5 Lembaga)</option>
             <option value="PILKADA">🗳️ Pilkada (2 Lembaga)</option>
-            <option value="SEMUA">📊 Semua / Gabungan (7 Lembaga)</option>
           </select>
         </div>
 
@@ -301,16 +300,13 @@
         </div>
       </div>
 
-      <!-- Segmented Kategori Tabs: Pemilu vs Pilkada vs Semua -->
+      <!-- Segmented Kategori Tabs: Pemilu vs Pilkada -->
       <div class="category-toggle-bar">
         <button type="button" id="btnCatPemilu" class="category-pill-btn active" onclick="setRekapCategory('PEMILU')">
           🏛️ Pemilu (5 Dokumen)
         </button>
         <button type="button" id="btnCatPilkada" class="category-pill-btn" onclick="setRekapCategory('PILKADA')">
           🗳️ Pilkada (2 Dokumen)
-        </button>
-        <button type="button" id="btnCatSemua" class="category-pill-btn" onclick="setRekapCategory('SEMUA')">
-          📊 Semua (7)
         </button>
       </div>
 
