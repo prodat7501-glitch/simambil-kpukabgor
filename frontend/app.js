@@ -221,7 +221,7 @@ function showAppToast(message, type = 'info', duration = 3000) {
   }, duration);
 }
 
-function showAppDialog({ title, message, type = 'info', confirmText = 'Mengerti', cancelText = null, onConfirm = null, onCancel = null }) {
+function showAppDialog({ title, message, type = 'info', confirmText = 'Mengerti', cancelText = null, onConfirm = null, onCancel = null, secondaryText = null, onSecondary = null }) {
   const modal = document.getElementById('appDialogModal');
   const titleEl = document.getElementById('appDialogTitle');
   const msgEl = document.getElementById('appDialogMessage');
@@ -250,27 +250,70 @@ function showAppDialog({ title, message, type = 'info', confirmText = 'Mengerti'
 
   if (actionsEl) {
     actionsEl.innerHTML = '';
-    if (cancelText) {
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'btn btn-secondary';
-      cancelBtn.style.flex = '1';
-      cancelBtn.textContent = cancelText;
-      cancelBtn.onclick = () => {
-        modal.classList.remove('active');
-        if (onCancel) onCancel();
-      };
-      actionsEl.appendChild(cancelBtn);
-    }
 
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'btn btn-primary';
-    confirmBtn.style.flex = '1';
-    confirmBtn.textContent = confirmText;
-    confirmBtn.onclick = () => {
-      modal.classList.remove('active');
-      if (onConfirm) onConfirm();
-    };
-    actionsEl.appendChild(confirmBtn);
+    if (secondaryText) {
+      actionsEl.style.flexDirection = 'column';
+      actionsEl.style.gap = '8px';
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn btn-primary';
+      confirmBtn.style.width = '100%';
+      confirmBtn.textContent = confirmText;
+      confirmBtn.onclick = () => {
+        modal.classList.remove('active');
+        if (onConfirm) onConfirm();
+      };
+      actionsEl.appendChild(confirmBtn);
+
+      const secBtn = document.createElement('button');
+      secBtn.className = 'btn btn-secondary';
+      secBtn.style.width = '100%';
+      secBtn.textContent = secondaryText;
+      secBtn.onclick = () => {
+        modal.classList.remove('active');
+        if (onSecondary) onSecondary();
+      };
+      actionsEl.appendChild(secBtn);
+
+      if (cancelText) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-secondary';
+        cancelBtn.style.width = '100%';
+        cancelBtn.style.background = '#f1f5f9';
+        cancelBtn.style.color = '#475569';
+        cancelBtn.textContent = cancelText;
+        cancelBtn.onclick = () => {
+          modal.classList.remove('active');
+          if (onCancel) onCancel();
+        };
+        actionsEl.appendChild(cancelBtn);
+      }
+    } else {
+      actionsEl.style.flexDirection = 'row';
+      actionsEl.style.gap = '10px';
+
+      if (cancelText) {
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-secondary';
+        cancelBtn.style.flex = '1';
+        cancelBtn.textContent = cancelText;
+        cancelBtn.onclick = () => {
+          modal.classList.remove('active');
+          if (onCancel) onCancel();
+        };
+        actionsEl.appendChild(cancelBtn);
+      }
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.className = 'btn btn-primary';
+      confirmBtn.style.flex = '1';
+      confirmBtn.textContent = confirmText;
+      confirmBtn.onclick = () => {
+        modal.classList.remove('active');
+        if (onConfirm) onConfirm();
+      };
+      actionsEl.appendChild(confirmBtn);
+    }
   }
 
   modal.classList.add('active');
@@ -974,18 +1017,74 @@ function onSlotClicked(index) {
 
 function confirmResetPages() {
   const filledCount = pagesState.filter(p => p.dataUrl).length;
-  if (filledCount === 0) return;
+  const selectKec = document.getElementById('selectKecamatan');
+  const selectDesa = document.getElementById('selectDesa');
+  const selectTPS = document.getElementById('selectTPS');
 
+  const kec = selectKec?.value || '';
+  const desa = selectDesa?.value || '';
+  const tps = selectTPS?.value || '';
+  const hasRegionSelected = !!(kec || desa || tps);
+
+  // Jika tidak ada foto dan belum ada wilayah yang dipilih
+  if (filledCount === 0 && !hasRegionSelected) {
+    showAppToast('Formulir dan slot foto sudah dalam keadaan bersih/kosong.', 'info', 2500);
+    return;
+  }
+
+  // Skenario 1: Ada foto DAN wilayah terpilih
+  if (filledCount > 0 && hasRegionSelected) {
+    const wilayahLabel = [kec, desa, tps ? `TPS ${tps}` : ''].filter(Boolean).join(' - ');
+    showAppDialog({
+      title: 'Reset Kamera & Upload?',
+      type: 'warning',
+      message: `Ditemukan <strong>${filledCount} foto halaman</strong> dan wilayah terpilih (<strong>${escapeHtml(wilayahLabel)}</strong>).<br><br>Pilih tindakan reset yang diinginkan:`,
+      confirmText: 'Ya, Reset Semua (Wilayah & Foto)',
+      secondaryText: 'Hapus Foto Saja (Wilayah Tetap)',
+      cancelText: 'Batal',
+      onConfirm: () => {
+        initPagesState();
+        renderPageSlots();
+        resetWilayahSelectionToDefault();
+        showAppToast('Formulir wilayah dan slot foto berhasil di-reset.', 'success', 2500);
+      },
+      onSecondary: () => {
+        initPagesState();
+        renderPageSlots();
+        showAppToast(`Seluruh foto halaman (${filledCount} foto) berhasil dihapus. Pilihan wilayah tetap tersimpan.`, 'info', 2500);
+      }
+    });
+    return;
+  }
+
+  // Skenario 2: Ada foto, tetapi belum ada wilayah terpilih
+  if (filledCount > 0) {
+    showAppDialog({
+      title: 'Hapus Seluruh Foto?',
+      type: 'warning',
+      message: `Apakah Anda yakin ingin menghapus seluruh <strong>${filledCount} foto halaman</strong> yang sudah diambil?`,
+      confirmText: 'Ya, Hapus Semua Foto',
+      cancelText: 'Batal',
+      onConfirm: () => {
+        initPagesState();
+        renderPageSlots();
+        showAppToast('Seluruh foto halaman berhasil di-reset.', 'info', 2500);
+      }
+    });
+    return;
+  }
+
+  // Skenario 3: Belum ada foto, tetapi wilayah sudah dipilih
+  const wilayahLabel = [kec, desa, tps ? `TPS ${tps}` : ''].filter(Boolean).join(' - ');
   showAppDialog({
-    title: 'Reset Seluruh Foto?',
+    title: 'Reset Pilihan Wilayah?',
     type: 'warning',
-    message: `Apakah Anda yakin ingin menghapus seluruh <strong>${filledCount} foto halaman</strong> yang sudah diambil?`,
-    confirmText: 'Ya, Reset Semua',
+    message: `Apakah Anda yakin ingin mereset pilihan wilayah (<strong>${escapeHtml(wilayahLabel)}</strong>) kembali ke awal?`,
+    confirmText: 'Ya, Reset Wilayah',
     cancelText: 'Batal',
     onConfirm: () => {
-      initPagesState();
-      renderPageSlots();
-      showAppToast('Seluruh foto telah di-reset.', 'info');
+      resetWilayahSelectionToDefault();
+      showAppToast('Pilihan wilayah berhasil di-reset.', 'info', 2500);
     }
   });
 }
