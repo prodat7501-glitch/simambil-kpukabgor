@@ -47,23 +47,37 @@ Mencatat riwayat upload berkas yang berhasil masuk beserta identitas operator ya
 | L | NIP_OPERATOR | NIP / Nomor identitas operator |
 | M | JABATAN_OPERATOR | Jabatan operator (Sekretariat / Komisioner) |
 
-### 4. Sheet / View: `Rekap_Progres`
-Menghitung status kelengkapan dokumen per TPS secara otomatis dengan evaluasi target halaman per lembaga:
+### 4. Sheet / View: `Rekap_Progres` (Pemilu) & `Rekap_Progres_Pilkada` (Pilkada)
+Menghitung status kelengkapan dokumen per TPS secara otomatis langsung oleh engine Google Sheets (Alternatif A - 100% Native Formulas) tanpa membebani runtime Apps Script saat upload:
+
+#### 4a. Sheet: `Rekap_Progres` (Pemilu - 5 Dokumen Lengkap)
 | Kolom | Nama Field | Formula / Keterangan |
 |---|---|---|
-| A | ID_TPS | Referensi dari `Master_Wilayah` |
+| A | ID_TPS | Referensi ID TPS dari `Master_Wilayah` |
 | B | NAMA_KEC | Nama Kecamatan |
 | C | NAMA_DESA | Nama Desa |
-| D | NO_TPS | Nomor TPS |
-| E | PPWP | Cek status upload PPWP (Wajib $\ge$ 3 Halaman) |
-| F | DPR_RI | Cek status upload DPR RI (Wajib $\ge$ 20 Halaman) |
-| G | DPD_RI | Cek status upload DPD RI (Wajib $\ge$ 3 Halaman) |
-| H | DPRD_PROV | Cek status upload DPRD Provinsi (Wajib $\ge$ 20 Halaman) |
-| I | DPRD_KAB | Cek status upload DPRD Kab/Kota (Wajib $\ge$ 20 Halaman) |
-| J | PILGUB | Cek status upload Gubernur & Wagub (Wajib $\ge$ 3 Halaman) |
-| K | PILBUP | Cek status upload Bupati & Wagub (Wajib $\ge$ 3 Halaman) |
-| L | TOTAL_LENGKAP | Jumlah jenis lembaga yang memenuhi target halaman (0 - 7) |
-| M | STATUS_AKHIR | `IF(TOTAL_LENGKAP=7, "LENGKAP", IF(TOTAL_UPLOAD>0, "BELUM LENGKAP", "KOSONG"))` |
+| D | NO_TPS | Nomor TPS (format 001, dst) |
+| E | PPWP | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "PPWP")>0, "✓", "-")` |
+| F | DPR_RI | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "DPR-RI")>0, "✓", "-")` |
+| G | DPD_RI | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "DPD-RI")>0, "✓", "-")` |
+| H | DPRD_PROV | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "DPRD-PROV")>0, "✓", "-")` |
+| I | DPRD_KAB | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "DPRD-KAB")>0, "✓", "-")` |
+| J | PILGUB | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "PILGUB")>0, "✓", "-")` |
+| K | PILBUP | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "PILBUP")>0, "✓", "-")` |
+| L | TOTAL_UPLOAD | `=COUNTIF(E2:K2, "✓")` |
+| M | STATUS_AKHIR | `=IF(COUNTIF(E2:I2, "✓")>=5, "LENGKAP", IF(L2>0, "BELUM LENGKAP", "KOSONG"))` |
+
+#### 4b. Sheet: `Rekap_Progres_Pilkada` (Pilkada - 2 Dokumen Lengkap)
+| Kolom | Nama Field | Formula / Keterangan |
+|---|---|---|
+| A | ID_TPS | Referensi ID TPS dari `Master_Wilayah_Pilkada` |
+| B | NAMA_KEC | Nama Kecamatan |
+| C | NAMA_DESA | Nama Desa |
+| D | NO_TPS | Nomor TPS (format 001, dst) |
+| E | PILGUB | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "PILGUB")>0, "✓", "-")` |
+| F | PILBUP | `=IF(COUNTIFS(Log_Dokumen!$E:$E, B2, Log_Dokumen!$F:$F, C2, Log_Dokumen!$G:$G, D2, Log_Dokumen!$D:$D, "PILBUP")>0, "✓", "-")` |
+| G | TOTAL_UPLOAD | `=COUNTIF(E2:F2, "✓")` |
+| H | STATUS_AKHIR | `=IF(G2=2, "LENGKAP", IF(G2>0, "BELUM LENGKAP", "KOSONG"))` |
 
 ### 5. Aturan Keamanan Data & Idempotensi Setup Database (Safe Migration Mode)
 - **Non-Destructive Initialization:** Fungsi `setupDatabase()` dilarang keras memanggil `.clear()` pada sheet yang telah memiliki data.

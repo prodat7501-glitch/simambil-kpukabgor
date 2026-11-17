@@ -17,7 +17,8 @@ const SHEETS = {
   WILAYAH_PILKADA: 'Master_Wilayah_Pilkada',
   KATEGORI: 'Master_Kategori',
   LOG: 'Log_Dokumen',
-  REKAP: 'Rekap_Progres'
+  REKAP: 'Rekap_Progres',
+  REKAP_PILKADA: 'Rekap_Progres_Pilkada'
 };
 
 // Target Root Folder ID di Google Drive
@@ -88,6 +89,22 @@ function doGet(e) {
       const filterKategori = e.parameter.kategori || '';
       const data = getMonitoringSummary(filterKec, filterDesa, filterKategori, isRefresh);
       return createJsonResponse(data);
+    }
+
+    if (action === 'initRekapProgres' || action === 'setupDatabase') {
+      if (!isAuthorized(e)) {
+        return createJsonResponse({
+          status: 'error',
+          code: 403,
+          message: 'Akses Ditolak: Token otentikasi tidak valid atau belum disertakan.'
+        });
+      }
+      const ss = getAppSpreadsheet();
+      setupRekapProgresFormulas(ss, true);
+      return createJsonResponse({
+        status: 'success',
+        message: 'Formula Rekap_Progres dan Rekap_Progres_Pilkada berhasil diinisialisasi di Spreadsheet!'
+      });
     }
 
     // Default info status jika endpoint dibuka langsung di browser
@@ -929,7 +946,15 @@ function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori, bypas
  */
 
 function logUploadedDocument(item) {
+  const lock = LockService.getScriptLock();
+  let hasLock = false;
   try {
+    // 1. Antrean Konkurensi Mutlak: Tunggu hingga 30 detik agar 15+ operator dapat mengirim bersamaan tanpa tabrakan data (race condition)
+    hasLock = lock.tryLock(30000);
+    if (!hasLock) {
+      Logger.log('LockService notice: Antrean penulisan log spreadsheet padat, mengeksekusi penulisan langsung.');
+    }
+
     const ss = getAppSpreadsheet();
     if (!ss) return;
 
@@ -959,15 +984,27 @@ function logUploadedDocument(item) {
       escapeSpreadsheetFormula(item.kecamatan),
       escapeSpreadsheetFormula(item.desa),
       escapeSpreadsheetFormula(item.tps),
-      item.totalHalaman,
+      Number(item.totalHalaman || 1),
       escapeSpreadsheetFormula(item.fileId),
       escapeSpreadsheetFormula(item.fileUrl),
       escapeSpreadsheetFormula(item.operatorNama || '-'),
       escapeSpreadsheetFormula(item.operatorNip || '-'),
       escapeSpreadsheetFormula(item.operatorJabatan || '-')
     ]);
+
+    // Komit transaksi langsung ke basis data Google Sheets
+    SpreadsheetApp.flush();
+
   } catch (err) {
     Logger.log('Error logUploadedDocument: ' + err.message);
+  } finally {
+    if (hasLock) {
+      try {
+        lock.releaseLock();
+      } catch (eRelease) {
+        Logger.log('Lock release notice: ' + eRelease.message);
+      }
+    }
   }
 }
 
@@ -1129,21 +1166,142 @@ function setupDatabase() {
     'NAMA_OPERATOR', 'NIP_OPERATOR', 'JABATAN_OPERATOR'
   ]);
 
-  // 4. Setup Rekap_Progres (Non-destructive: hanya pastikan header tersedia)
-  let sheetRekap = ss.getSheetByName(SHEETS.REKAP);
-  if (!sheetRekap) {
-    sheetRekap = ss.insertSheet(SHEETS.REKAP);
-  }
-  ensureSheetHeaders(sheetRekap, [
-    'ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS',
-    'PPWP', 'DPR_RI', 'DPD_RI', 'DPRD_PROV', 'DPRD_KAB', 'PILGUB', 'PILBUP',
-    'TOTAL_UPLOAD', 'STATUS_AKHIR'
-  ]);
+  // 4. Setup Rekap_Progres & Formula Otomatis (Alternatif A - 100% Native Google Sheets Formulas)
+  setupRekapProgresFormulas(ss, false);
 
   SpreadsheetApp.flush();
   const existingTpsCount = Math.max(0, sheetWilayah.getLastRow() - 1);
   Logger.log('Setup / Migrasi Database SIMAMBIL Berhasil! Data aman & tidak direset. Total TPS saat ini: ' + existingTpsCount);
   return 'Setup / Migrasi Database SIMAMBIL selesai aman tanpa reset data. Total TPS terdaftar: ' + existingTpsCount;
+}
+
+/**
+ * Setup Formula Otomatis untuk Sheet Rekap_Progres & Rekap_Progres_Pilkada (Alternatif A)
+ * 100% Native Google Sheets Formula (COUNTIFS) - Zero server overhead saat operator upload
+ */
+function setupRekapProgresFormulas(ss, forceRefresh) {
+  if (!ss) ss = getAppSpreadsheet();
+  if (!ss) return;
+
+  // 1. Setup Sheet Rekap_Progres (Pemilu 5 Lembaga / 7 Lembaga SSOT)
+  let sheetRekap = findSheetFlexible(ss, SHEETS.REKAP) || ss.getSheetByName(SHEETS.REKAP);
+  if (!sheetRekap) {
+    sheetRekap = ss.insertSheet(SHEETS.REKAP);
+  }
+
+  const headers = [
+    'ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS',
+    'PPWP', 'DPR_RI', 'DPD_RI', 'DPRD_PROV', 'DPRD_KAB', 'PILGUB', 'PILBUP',
+    'TOTAL_UPLOAD', 'STATUS_AKHIR'
+  ];
+  ensureSheetHeaders(sheetRekap, headers);
+
+  const sheetWilayah = findSheetFlexible(ss, SHEETS.WILAYAH) || ss.getSheetByName(SHEETS.WILAYAH);
+  if (sheetWilayah && sheetWilayah.getLastRow() > 1) {
+    const dataWilayah = sheetWilayah.getDataRange().getValues();
+    const colIndices = detectWilayahColumnIndices(dataWilayah[0]);
+    const numTps = dataWilayah.length - 1;
+
+    // Jika sheet rekap masih kosong (baris <= 1) atau forceRefresh aktif
+    if ((sheetRekap.getLastRow() <= 1 || forceRefresh) && numTps > 0) {
+      if (forceRefresh && sheetRekap.getLastRow() > 1) {
+        sheetRekap.getRange(2, 1, sheetRekap.getLastRow() - 1, headers.length).clearContent();
+      }
+
+      const rows = [];
+      for (let i = 1; i < dataWilayah.length; i++) {
+        const rowIdx = i + 1;
+        const kec = String(dataWilayah[i][colIndices.colKec] || '').trim().toUpperCase();
+        const desa = String(dataWilayah[i][colIndices.colDesa] || '').trim().toUpperCase();
+        const tps = formatTPS(String(dataWilayah[i][colIndices.colTps] || '').trim());
+        const rawId = String(dataWilayah[i][0] || '').trim();
+        const idTps = (colIndices.colKec !== 0 && rawId) ? rawId : (kec + '_' + desa + '_' + tps);
+
+        rows.push([
+          idTps,
+          kec,
+          desa,
+          tps,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PPWP")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPR-RI")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPD-RI")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPRD-PROV")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPRD-KAB")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILGUB")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILBUP")>0, "✓", "-")`,
+          `=COUNTIF(E${rowIdx}:K${rowIdx}, "✓")`,
+          `=IF(COUNTIF(E${rowIdx}:I${rowIdx}, "✓")>=5, "LENGKAP", IF(L${rowIdx}>0, "BELUM LENGKAP", "KOSONG"))`
+        ]);
+      }
+
+      if (rows.length > 0) {
+        sheetRekap.getRange(2, 1, rows.length, headers.length).setValues(rows);
+        sheetRekap.getRange(2, 5, rows.length, 7).setHorizontalAlignment('center');
+        sheetRekap.getRange(2, 12, rows.length, 2).setHorizontalAlignment('center');
+      }
+    }
+  }
+
+  // 2. Setup Sheet Rekap_Progres_Pilkada jika Master_Wilayah_Pilkada tersedia data
+  const sheetWilayahPilkada = findSheetFlexible(ss, SHEETS.WILAYAH_PILKADA);
+  if (sheetWilayahPilkada && sheetWilayahPilkada.getLastRow() > 1) {
+    let sheetRekapPilkada = findSheetFlexible(ss, SHEETS.REKAP_PILKADA) || ss.getSheetByName(SHEETS.REKAP_PILKADA);
+    if (!sheetRekapPilkada) {
+      sheetRekapPilkada = ss.insertSheet(SHEETS.REKAP_PILKADA);
+    }
+    const headersPilkada = ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'PILGUB', 'PILBUP', 'TOTAL_UPLOAD', 'STATUS_AKHIR'];
+    ensureSheetHeaders(sheetRekapPilkada, headersPilkada);
+
+    const dataPilkada = sheetWilayahPilkada.getDataRange().getValues();
+    const colP = detectWilayahColumnIndices(dataPilkada[0]);
+    const numPilkadaTps = dataPilkada.length - 1;
+
+    if ((sheetRekapPilkada.getLastRow() <= 1 || forceRefresh) && numPilkadaTps > 0) {
+      if (forceRefresh && sheetRekapPilkada.getLastRow() > 1) {
+        sheetRekapPilkada.getRange(2, 1, sheetRekapPilkada.getLastRow() - 1, headersPilkada.length).clearContent();
+      }
+
+      const rowsP = [];
+      for (let i = 1; i < dataPilkada.length; i++) {
+        const rowIdx = i + 1;
+        const kec = String(dataPilkada[i][colP.colKec] || '').trim().toUpperCase();
+        const desa = String(dataPilkada[i][colP.colDesa] || '').trim().toUpperCase();
+        const tps = formatTPS(String(dataPilkada[i][colP.colTps] || '').trim());
+        const rawId = String(dataPilkada[i][0] || '').trim();
+        const idTps = (colP.colKec !== 0 && rawId) ? rawId : (kec + '_' + desa + '_' + tps);
+
+        rowsP.push([
+          idTps,
+          kec,
+          desa,
+          tps,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILGUB")>0, "✓", "-")`,
+          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILBUP")>0, "✓", "-")`,
+          `=COUNTIF(E${rowIdx}:F${rowIdx}, "✓")`,
+          `=IF(G${rowIdx}=2, "LENGKAP", IF(G${rowIdx}>0, "BELUM LENGKAP", "KOSONG"))`
+        ]);
+      }
+
+      if (rowsP.length > 0) {
+        sheetRekapPilkada.getRange(2, 1, rowsP.length, headersPilkada.length).setValues(rowsP);
+        sheetRekapPilkada.getRange(2, 5, rowsP.length, 4).setHorizontalAlignment('center');
+      }
+    }
+  }
+
+  SpreadsheetApp.flush();
+}
+
+/**
+ * Fungsi mandiri untuk menginisialisasi atau memperbarui formula Rekap_Progres
+ * Dapat dijalankan langsung dari editor Apps Script via tombol 'Run'
+ */
+function initRekapProgres() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet() || getAppSpreadsheet();
+  if (!ss) throw new Error('Spreadsheet tidak ditemukan.');
+  setupRekapProgresFormulas(ss, true);
+  Logger.log('Inisialisasi formula Rekap_Progres selesai!');
+  return 'Inisialisasi formula Rekap_Progres selesai!';
 }
 
 /**
