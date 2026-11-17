@@ -2776,8 +2776,10 @@ function triggerPicker(selectId, title, icon = '📍', hasSearch = true) {
   renderPickerOptions('');
   if (modal) modal.classList.add('active');
 
-  if (hasSearch && searchInput) {
-    setTimeout(() => searchInput.focus(), 250);
+  // Nonaktifkan auto-focus keyboard: biarkan operator leluasa memilih opsi yang tampil,
+  // keyboard hanya akan muncul saat operator mengetuk kolom pencarian
+  if (searchInput) {
+    searchInput.blur();
   }
 }
 

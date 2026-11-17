@@ -30,6 +30,7 @@
   - Menggantikan dialog picker radio hitam/abu-abu bawaan browser Android dengan **Bottom Sheet Picker kustom** yang modern dan elegan.
   - Dilengkapi fitur pencarian cepat (*instant search filter*) untuk memudahkan operator mencari Kecamatan, Desa, maupun TPS tanpa perlu menggulir ratusan daftar opsi.
   - Memiliki header jelas dengan drag handle bar, indikator centang (*check icon*) marun pada opsi aktif, dan menutup otomatis secara mulus begitu opsi dipilih.
+  - **Bebas Obstruksi Keyboard:** Secara default kursor tidak diarahkan otomatis ke input pencarian saat picker terbuka, sehingga keyboard virtual mobile tidak menghalangi daftar opsi. Keyboard hanya akan muncul apabila operator secara eksplisit mengetuk kotak pencarian.
   - Sinkron secara dua arah (*two-way binding*) dengan elemen formulir dan logika cascading (*Kecamatan -> Desa -> TPS*).
 - **Slot Foto & Bottom Action Bar:**
   - Slot foto 20 halaman memiliki status kosong dan terisi yang kontras, dengan preview thumbnail jelas dan centang status hijau.

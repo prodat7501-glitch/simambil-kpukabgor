@@ -567,13 +567,13 @@
         </div>
 
         <div class="bottom-sheet-search-wrapper" id="pickerSearchWrapper">
-          <div class="search-input-box">
+          <div class="search-input-box" onclick="document.getElementById('pickerSearchInput')?.focus()" style="cursor: text;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
             <input type="text" id="pickerSearchInput" class="picker-search-field" placeholder="Ketik untuk mencari..." oninput="onPickerSearchInput(this.value)">
-            <button id="pickerSearchClearBtn" class="picker-clear-search" onclick="clearPickerSearch()" style="display: none;">&times;</button>
+            <button id="pickerSearchClearBtn" class="picker-clear-search" onclick="event.stopPropagation(); clearPickerSearch();" style="display: none;">&times;</button>
           </div>
         </div>
 
