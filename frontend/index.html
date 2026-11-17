@@ -91,11 +91,12 @@
           <div class="custom-picker-field" id="triggerJenisFile" onclick="triggerPicker('selectJenisFile', 'Jenis Berkas Dokumen', '📄', false)" role="button" tabindex="0">
             <div class="picker-field-left">
               <span class="picker-field-icon">📄</span>
-              <span class="picker-field-text" id="labelJenisFile">Model C-Plano</span>
+              <span class="picker-field-text" id="labelJenisFile">-- Pilih Jenis Berkas --</span>
             </div>
             <span class="picker-field-chevron">▾</span>
           </div>
           <select id="selectJenisFile" class="visually-hidden-select" onchange="updateGeneratedFilename(); syncAllPickers();">
+            <option value="">-- Pilih Jenis Berkas --</option>
             <option value="Model C-Plano">Model C-Plano</option>
             <option value="Model D-Plano">Model D-Plano</option>
           </select>
@@ -106,11 +107,12 @@
           <div class="custom-picker-field" id="triggerLembaga" onclick="triggerPicker('selectLembaga', 'Jenis Pemilihan / Lembaga', '🏛️', false)" role="button" tabindex="0">
             <div class="picker-field-left">
               <span class="picker-field-icon">🏛️</span>
-              <span class="picker-field-text" id="labelLembaga">1. PPWP (Presiden & Wapres)</span>
+              <span class="picker-field-text" id="labelLembaga">-- Pilih Jenis Pemilihan --</span>
             </div>
             <span class="picker-field-chevron">▾</span>
           </div>
           <select id="selectLembaga" class="visually-hidden-select" onchange="onLembagaSelectionChanged();">
+            <option value="">-- Pilih Jenis Pemilihan --</option>
             <option value="PPWP">1. PPWP (Presiden & Wapres)</option>
             <option value="DPD-RI">2. DPD RI</option>
             <option value="DPR-RI">3. DPR RI</option>
@@ -122,9 +124,9 @@
           <div id="targetPageInfo" style="margin-top: 6px; font-size: 11px; display: flex; align-items: center; justify-content: space-between; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px;">
             <div style="display: flex; align-items: center; gap: 5px;">
               <span style="font-weight: 700; color: var(--kpu-maroon);">Target Berkas:</span>
-              <span id="targetPageInfoText" style="font-weight: 600; color: #0f172a;">3 Halaman</span>
+              <span id="targetPageInfoText" style="font-weight: 600; color: #0f172a;">-- Halaman</span>
             </div>
-            <span id="targetPageInfoStatus" style="font-size: 10px; font-weight: 700; color: #e11d48; background: #ffe4e6; padding: 2px 8px; border-radius: 12px;">0 / 3 Terisi</span>
+            <span id="targetPageInfoStatus" style="font-size: 10px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 8px; border-radius: 12px;">Pilih Pemilihan</span>
           </div>
         </div>
 

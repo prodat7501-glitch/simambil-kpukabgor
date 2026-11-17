@@ -562,12 +562,13 @@ async function testGasConnection() {
  * ==============================================================================
  */
 function getTargetPagesForCurrentLembaga() {
-  const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  const selectedLembaga = document.getElementById('selectLembaga')?.value || '';
+  if (!selectedLembaga) return 0;
   return TARGET_HALAMAN[selectedLembaga] || 3;
 }
 
 function initPagesState(numPages) {
-  const targetPages = numPages || getTargetPagesForCurrentLembaga();
+  const targetPages = numPages !== undefined ? numPages : getTargetPagesForCurrentLembaga();
   pagesState = [];
   for (let i = 0; i < targetPages; i++) {
     pagesState.push({
@@ -580,6 +581,10 @@ function initPagesState(numPages) {
 
 function syncPagesStateWithLembaga() {
   const targetPages = getTargetPagesForCurrentLembaga();
+  if (targetPages === 0) {
+    pagesState = [];
+    return;
+  }
   while (pagesState.length < targetPages) {
     pagesState.push({
       page: pagesState.length + 1,
@@ -835,22 +840,22 @@ function onDesaChanged(preserveTps) {
  * Format: [JENIS_FILE]_[KODE_LEMBAGA]_[KECAMATAN]_[DESA]_[TPS].pdf
  */
 function updateGeneratedFilename() {
-  const jenis = document.getElementById('selectJenisFile')?.value || 'Model C-Plano';
-  const lembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  const jenis = document.getElementById('selectJenisFile')?.value || '';
+  const lembaga = document.getElementById('selectLembaga')?.value || '';
   const kec = document.getElementById('selectKecamatan')?.value || '';
   const desa = document.getElementById('selectDesa')?.value || '';
   const tps = document.getElementById('selectTPS')?.value || '';
 
-  const cleanJenis = sanitizeStr(jenis);
-  const cleanLembaga = sanitizeStr(lembaga);
-  const cleanKec = sanitizeStr(kec);
-  const cleanDesa = sanitizeStr(desa);
-  const cleanTps = tps ? formatTpsNum(tps) : '';
+  const cleanJenis = jenis ? sanitizeStr(jenis) : '[JENIS]';
+  const cleanLembaga = lembaga ? sanitizeStr(lembaga) : '[LEMBAGA]';
+  const cleanKec = kec ? sanitizeStr(kec) : '[KEC]';
+  const cleanDesa = desa ? sanitizeStr(desa) : '[DESA]';
+  const cleanTps = tps ? formatTpsNum(tps) : '[TPS]';
 
   const previewEl = document.getElementById('previewFilename');
 
-  if (!kec || !desa || !tps) {
-    const placeholder = `${cleanJenis}_${cleanLembaga}_[KEC]_[DESA]_[TPS].pdf`;
+  if (!jenis || !lembaga || !kec || !desa || !tps) {
+    const placeholder = `${cleanJenis}_${cleanLembaga}_${cleanKec}_${cleanDesa}_${cleanTps}.pdf`;
     if (previewEl) {
       previewEl.textContent = placeholder;
       previewEl.style.color = 'var(--text-muted)';
@@ -898,8 +903,8 @@ function onLembagaSelectionChanged() {
 }
 
 function updateTargetPageUI() {
-  const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
-  const targetPages = TARGET_HALAMAN[selectedLembaga] || 3;
+  const selectedLembaga = document.getElementById('selectLembaga')?.value || '';
+  const targetPages = selectedLembaga ? (TARGET_HALAMAN[selectedLembaga] || 3) : 0;
   const filledCount = pagesState.filter(p => p.dataUrl).length;
 
   const targetInfoText = document.getElementById('targetPageInfoText');
@@ -907,11 +912,15 @@ function updateTargetPageUI() {
   const slotHint = document.getElementById('slotInstructionHint');
 
   if (targetInfoText) {
-    targetInfoText.textContent = `${targetPages} Halaman`;
+    targetInfoText.textContent = selectedLembaga ? `${targetPages} Halaman` : '-- Halaman';
   }
 
   if (targetInfoStatus) {
-    if (filledCount >= targetPages) {
+    if (!selectedLembaga) {
+      targetInfoStatus.textContent = 'Pilih Pemilihan';
+      targetInfoStatus.style.color = '#64748b';
+      targetInfoStatus.style.background = '#f1f5f9';
+    } else if (filledCount >= targetPages) {
       targetInfoStatus.textContent = `✓ ${filledCount}/${targetPages} Terpenuhi`;
       targetInfoStatus.style.color = '#15803d';
       targetInfoStatus.style.background = '#dcfce7';
@@ -927,7 +936,11 @@ function updateTargetPageUI() {
   }
 
   if (slotHint) {
-    slotHint.innerHTML = `Ketuk slot foto untuk memotret dokumen. Jumlah slot disesuaikan untuk <strong>${selectedLembaga}</strong>: <strong>${targetPages} Halaman</strong>.`;
+    if (selectedLembaga) {
+      slotHint.innerHTML = `Ketuk slot foto untuk memotret dokumen. Jumlah slot disesuaikan untuk <strong>${selectedLembaga}</strong>: <strong>${targetPages} Halaman</strong>.`;
+    } else {
+      slotHint.innerHTML = `Silakan tentukan <strong>Jenis Berkas</strong> dan <strong>Jenis Pemilihan / Lembaga</strong> terlebih dahulu.`;
+    }
   }
 }
 
@@ -936,8 +949,45 @@ function renderPageSlots() {
   if (!container) return;
   container.innerHTML = '';
 
-  const selectedLembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
-  const targetPages = TARGET_HALAMAN[selectedLembaga] || 3;
+  const selectedLembaga = document.getElementById('selectLembaga')?.value || '';
+  const targetPages = getTargetPagesForCurrentLembaga();
+
+  if (!selectedLembaga || targetPages === 0) {
+    container.classList.remove('slots-3');
+    pagesState = [];
+    const emptyNotice = document.createElement('div');
+    emptyNotice.className = 'slots-empty-notice';
+    emptyNotice.style.gridColumn = '1 / -1';
+    emptyNotice.style.textAlign = 'center';
+    emptyNotice.style.padding = '28px 16px';
+    emptyNotice.style.color = 'var(--text-muted)';
+    emptyNotice.style.fontSize = '12.5px';
+    emptyNotice.style.background = '#f8fafc';
+    emptyNotice.style.border = '1.5px dashed #cbd5e1';
+    emptyNotice.style.borderRadius = '10px';
+    emptyNotice.innerHTML = `
+      <div style="font-size: 26px; margin-bottom: 8px;">🏛️</div>
+      <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">Pilih Jenis Pemilihan Terlebih Dahulu</div>
+      <div>Silakan tentukan <strong>Jenis Pemilihan / Lembaga</strong> pada formulir di atas untuk menampilkan slot foto dokumen.</div>
+    `;
+    container.appendChild(emptyNotice);
+
+    const badge = document.getElementById('pageCountBadge');
+    if (badge) {
+      badge.textContent = 'Belum Dipilih';
+      badge.style.backgroundColor = 'var(--text-muted)';
+    }
+
+    const btnProcess = document.getElementById('btnProcessUpload');
+    const btnProcessLabel = document.getElementById('btnProcessLabel');
+    if (btnProcess) {
+      btnProcess.disabled = true;
+      if (btnProcessLabel) btnProcessLabel.textContent = 'Render & Simpan PDF';
+    }
+
+    updateTargetPageUI();
+    return;
+  }
 
   syncPagesStateWithLembaga();
 
@@ -1020,44 +1070,58 @@ function confirmResetPages() {
   const selectKec = document.getElementById('selectKecamatan');
   const selectDesa = document.getElementById('selectDesa');
   const selectTPS = document.getElementById('selectTPS');
+  const selectJenis = document.getElementById('selectJenisFile');
+  const selectLemb = document.getElementById('selectLembaga');
 
+  const jenis = selectJenis?.value || '';
+  const lembaga = selectLemb?.value || '';
   const kec = selectKec?.value || '';
   const desa = selectDesa?.value || '';
   const tps = selectTPS?.value || '';
   const hasRegionSelected = !!(kec || desa || tps);
+  const hasMetaSelected = !!(jenis || lembaga);
 
-  // Jika tidak ada foto dan belum ada wilayah yang dipilih
-  if (filledCount === 0 && !hasRegionSelected) {
+  // Jika tidak ada foto, belum ada wilayah, dan belum ada metadata yang dipilih
+  if (filledCount === 0 && !hasRegionSelected && !hasMetaSelected) {
     showAppToast('Formulir dan slot foto sudah dalam keadaan bersih/kosong.', 'info', 2500);
     return;
   }
 
-  // Skenario 1: Ada foto DAN wilayah terpilih
-  if (filledCount > 0 && hasRegionSelected) {
-    const wilayahLabel = [kec, desa, tps ? `TPS ${tps}` : ''].filter(Boolean).join(' - ');
+  const labelParts = [];
+  if (jenis) labelParts.push(jenis);
+  if (lembaga) labelParts.push(lembaga);
+  if (kec) labelParts.push(kec);
+  if (desa) labelParts.push(desa);
+  if (tps) labelParts.push(`TPS ${tps}`);
+  const formLabel = labelParts.join(' - ');
+
+  // Skenario 1: Ada foto DAN formulir (wilayah/metadata) terpilih
+  if (filledCount > 0 && (hasRegionSelected || hasMetaSelected)) {
     showAppDialog({
       title: 'Reset Kamera & Upload?',
       type: 'warning',
-      message: `Ditemukan <strong>${filledCount} foto halaman</strong> dan wilayah terpilih (<strong>${escapeHtml(wilayahLabel)}</strong>).<br><br>Pilih tindakan reset yang diinginkan:`,
-      confirmText: 'Ya, Reset Semua (Wilayah & Foto)',
-      secondaryText: 'Hapus Foto Saja (Wilayah Tetap)',
+      message: `Ditemukan <strong>${filledCount} foto halaman</strong> dan formulir aktif (<strong>${escapeHtml(formLabel)}</strong>).<br><br>Pilih tindakan reset yang diinginkan:`,
+      confirmText: 'Ya, Reset Semua (Formulir & Foto)',
+      secondaryText: 'Hapus Foto Saja (Formulir Tetap)',
       cancelText: 'Batal',
       onConfirm: () => {
+        if (selectJenis) selectJenis.value = '';
+        if (selectLemb) selectLemb.value = '';
         initPagesState();
         renderPageSlots();
         resetWilayahSelectionToDefault();
-        showAppToast('Formulir wilayah dan slot foto berhasil di-reset.', 'success', 2500);
+        showAppToast('Formulir dan slot foto berhasil di-reset.', 'success', 2500);
       },
       onSecondary: () => {
         initPagesState();
         renderPageSlots();
-        showAppToast(`Seluruh foto halaman (${filledCount} foto) berhasil dihapus. Pilihan wilayah tetap tersimpan.`, 'info', 2500);
+        showAppToast(`Seluruh foto halaman (${filledCount} foto) berhasil dihapus. Pilihan formulir tetap tersimpan.`, 'info', 2500);
       }
     });
     return;
   }
 
-  // Skenario 2: Ada foto, tetapi belum ada wilayah terpilih
+  // Skenario 2: Ada foto, tetapi belum ada formulir terpilih
   if (filledCount > 0) {
     showAppDialog({
       title: 'Hapus Seluruh Foto?',
@@ -1074,17 +1138,20 @@ function confirmResetPages() {
     return;
   }
 
-  // Skenario 3: Belum ada foto, tetapi wilayah sudah dipilih
-  const wilayahLabel = [kec, desa, tps ? `TPS ${tps}` : ''].filter(Boolean).join(' - ');
+  // Skenario 3: Belum ada foto, tetapi formulir (wilayah/metadata) sudah dipilih
   showAppDialog({
-    title: 'Reset Pilihan Wilayah?',
+    title: 'Reset Pilihan Formulir?',
     type: 'warning',
-    message: `Apakah Anda yakin ingin mereset pilihan wilayah (<strong>${escapeHtml(wilayahLabel)}</strong>) kembali ke awal?`,
-    confirmText: 'Ya, Reset Wilayah',
+    message: `Apakah Anda yakin ingin mereset pilihan formulir (<strong>${escapeHtml(formLabel)}</strong>) kembali ke awal?`,
+    confirmText: 'Ya, Reset Formulir',
     cancelText: 'Batal',
     onConfirm: () => {
+      if (selectJenis) selectJenis.value = '';
+      if (selectLemb) selectLemb.value = '';
+      initPagesState();
+      renderPageSlots();
       resetWilayahSelectionToDefault();
-      showAppToast('Pilihan wilayah berhasil di-reset.', 'info', 2500);
+      showAppToast('Pilihan formulir berhasil di-reset.', 'info', 2500);
     }
   });
 }
@@ -1096,9 +1163,25 @@ function confirmResetPages() {
  * ==============================================================================
  */
 function openCameraModal(index) {
+  const jenis = document.getElementById('selectJenisFile')?.value || '';
+  const lembaga = document.getElementById('selectLembaga')?.value || '';
   const kec = document.getElementById('selectKecamatan')?.value || '';
   const desa = document.getElementById('selectDesa')?.value || '';
   const tps = document.getElementById('selectTPS')?.value || '';
+
+  if (!jenis || !lembaga) {
+    showAppDialog({
+      title: 'Pilih Metadata Terlebih Dahulu',
+      type: 'warning',
+      message: 'Silakan tentukan pilihan <strong>Jenis Berkas Dokumen</strong> dan <strong>Jenis Pemilihan / Lembaga</strong> pada formulir di atas sebelum mengambil foto dokumen.',
+      confirmText: 'Pilih Sekarang',
+      onConfirm: () => {
+        const trig = !jenis ? document.getElementById('triggerJenisFile') : document.getElementById('triggerLembaga');
+        if (trig) trig.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    return;
+  }
 
   if (!kec || !desa || !tps) {
     showAppDialog({
@@ -1119,8 +1202,6 @@ function openCameraModal(index) {
   const metaEl = document.getElementById('cameraDocMeta');
   const title = document.getElementById('cameraSlotTitle');
 
-  const jenis = document.getElementById('selectJenisFile')?.value || 'Model C-Plano';
-  const lembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
   const targetPages = TARGET_HALAMAN[lembaga] || 3;
 
   const cleanJenis = sanitizeStr(jenis);
@@ -1521,11 +1602,25 @@ async function startRenderAndUpload() {
     return;
   }
 
-  const jenisFile = document.getElementById('selectJenisFile')?.value || 'Model C-Plano';
-  const lembaga = document.getElementById('selectLembaga')?.value || 'PPWP';
+  const jenisFile = document.getElementById('selectJenisFile')?.value || '';
+  const lembaga = document.getElementById('selectLembaga')?.value || '';
   const kecamatan = document.getElementById('selectKecamatan')?.value || '';
   const desa = document.getElementById('selectDesa')?.value || '';
   const tps = document.getElementById('selectTPS')?.value || '';
+
+  if (!jenisFile || !lembaga) {
+    showAppDialog({
+      title: 'Pilih Metadata Terlebih Dahulu',
+      type: 'warning',
+      message: 'Harap tentukan pilihan <strong>Jenis Berkas Dokumen</strong> dan <strong>Jenis Pemilihan / Lembaga</strong> terlebih dahulu sebelum menyimpan dokumen.',
+      confirmText: 'Pilih Sekarang',
+      onConfirm: () => {
+        const trig = !jenisFile ? document.getElementById('triggerJenisFile') : document.getElementById('triggerLembaga');
+        if (trig) trig.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    return;
+  }
 
   if (!kecamatan || !desa || !tps) {
     showAppDialog({
@@ -2602,6 +2697,10 @@ function renderRekapList() {
 
 function selectTPSAndLembagaFromRekap(kec, desa, tps, kodeLembaga) {
   selectTPSFromRekap(kec, desa, tps);
+  const selectJenis = document.getElementById('selectJenisFile');
+  if (selectJenis && !selectJenis.value) {
+    selectJenis.value = 'Model C-Plano';
+  }
   const selectLembaga = document.getElementById('selectLembaga');
   if (selectLembaga && kodeLembaga) {
     selectLembaga.value = kodeLembaga;
