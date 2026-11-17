@@ -302,10 +302,10 @@ function uploadCompiledDocument(payload) {
     }
 
     const meta = payload.metadata || {};
-    const jenisFile = sanitizeInput(meta.jenisFile || 'Model C-Plano');
-    const lembaga = sanitizeInput(meta.lembaga || 'PPWP');
-    const kecamatan = sanitizeInput(meta.kecamatan || 'ASPARAGA');
-    const desa = sanitizeInput(meta.desa || 'DESA');
+    const jenisFile = String(meta.jenisFile || 'Model C-Plano').trim();
+    const lembaga = normalizeKodeLembaga(meta.lembaga || 'PPWP');
+    const kecamatan = String(meta.kecamatan || 'ASPARAGA').trim().toUpperCase();
+    const desa = String(meta.desa || 'DESA').trim().toUpperCase();
     const tps = formatTPS(meta.tps || '001');
     const totalHalaman = Number(meta.totalHalaman || 1);
 
@@ -407,6 +407,7 @@ function uploadCompiledDocument(payload) {
     // Invalidate cache monitoring di GAS agar rekapitulasi berikutnya langsung mutakhir
     try {
       CacheService.getScriptCache().remove('CACHE_MONITORING_SUMMARY_ALL');
+      CacheService.getScriptCache().remove('CACHE_MONITORING_SUMMARY_V3');
     } catch (eCache) {
       Logger.log('Cache remove error: ' + eCache.message);
     }
@@ -441,7 +442,7 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
 
     // 0. Cek CacheService Apps Script untuk query ringkasan seluruh kabupaten
     if (isGlobal) {
-      const cached = cache.get('CACHE_MONITORING_SUMMARY_ALL');
+      const cached = cache.get('CACHE_MONITORING_SUMMARY_V3');
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -496,7 +497,7 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
 
         if (!kec || !desa || !tps || !kodeLembaga) continue;
 
-        const key = kec + '|' + desa + '|' + tps;
+        const key = normalizeWilayahKey(kec, desa, tps);
         if (!uploadMap.has(key)) {
           uploadMap.set(key, {});
         }
@@ -590,8 +591,8 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
     let countBelumLengkap = 0;
     let countKosong = 0;
 
-    const normFilterKec = filterKecamatan ? filterKecamatan.trim().toUpperCase() : '';
-    const normFilterDesa = filterDesa ? filterDesa.trim().toUpperCase() : '';
+    const normFilterKec = filterKecamatan ? filterKecamatan.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
+    const normFilterDesa = filterDesa ? filterDesa.trim().toUpperCase().replace(/[\s\-_]+/g, '') : '';
 
     for (let i = 1; i < wilayahData.length; i++) {
       const kec = String(wilayahData[i][1] || '').trim().toUpperCase();
@@ -600,14 +601,14 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
 
       if (!kec || !desa || !tps) continue;
 
-      const key = kec + '|' + desa + '|' + tps;
-      processedKeys.add(key);
+      const normKey = normalizeWilayahKey(kec, desa, tps);
+      processedKeys.add(normKey);
 
-      // Filter wilayah jika parameter diberikan
-      if (normFilterKec && kec !== normFilterKec) continue;
-      if (normFilterDesa && desa !== normFilterDesa) continue;
+      // Filter wilayah jika parameter diberikan (toleran variasi spasi/strip)
+      if (normFilterKec && kec.replace(/[\s\-_]+/g, '') !== normFilterKec) continue;
+      if (normFilterDesa && desa.replace(/[\s\-_]+/g, '') !== normFilterDesa) continue;
 
-      const evalResult = evaluateTpsRecords(uploadMap.get(key));
+      const evalResult = evaluateTpsRecords(uploadMap.get(normKey));
 
       if (evalResult.status === 'LENGKAP') {
         countLengkap++;
@@ -630,40 +631,43 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       });
     }
 
-    // 4. Tambahkan juga TPS dari Log jika ada berkas yang diunggah tetapi belum terdata di Master_Wilayah
-    uploadMap.forEach((tpsPages, key) => {
-      if (processedKeys.has(key)) return;
-      const parts = key.split('|');
-      if (parts.length < 3) return;
-      const kec = parts[0];
-      const desa = parts[1];
-      const tps = parts[2];
+    // 4. Tambahkan TPS dari Log HANYA jika Master_Wilayah kosong (mode darurat/seeder awal)
+    // Jika Master_Wilayah terisi, Master_Wilayah adalah SSOT mutlak (1205 TPS) sehingga TPS phantom tidak akan tercipta
+    if (wilayahData.length <= 1) {
+      uploadMap.forEach((tpsPages, key) => {
+        if (processedKeys.has(key)) return;
+        const parts = key.split('|');
+        if (parts.length < 3) return;
+        const kec = parts[0];
+        const desa = parts[1];
+        const tps = parts[2];
 
-      if (normFilterKec && kec !== normFilterKec) return;
-      if (normFilterDesa && desa !== normFilterDesa) return;
+        if (normFilterKec && kec.replace(/[\s\-_]+/g, '') !== normFilterKec) return;
+        if (normFilterDesa && desa.replace(/[\s\-_]+/g, '') !== normFilterDesa) return;
 
-      const evalResult = evaluateTpsRecords(tpsPages);
+        const evalResult = evaluateTpsRecords(tpsPages);
 
-      if (evalResult.status === 'LENGKAP') {
-        countLengkap++;
-      } else if (evalResult.status === 'BELUM LENGKAP') {
-        countBelumLengkap++;
-      } else {
-        countKosong++;
-      }
+        if (evalResult.status === 'LENGKAP') {
+          countLengkap++;
+        } else if (evalResult.status === 'BELUM LENGKAP') {
+          countBelumLengkap++;
+        } else {
+          countKosong++;
+        }
 
-      records.push({
-        kecamatan: kec,
-        desa: desa,
-        tps: tps,
-        status: evalResult.status,
-        totalLengkap: evalResult.totalLengkap,
-        totalUpload: evalResult.totalUpload,
-        targetTotal: evalResult.targetTotal,
-        rincian: evalResult.rincian,
-        detailHalaman: evalResult.detailHalaman
+        records.push({
+          kecamatan: kec,
+          desa: desa,
+          tps: tps,
+          status: evalResult.status,
+          totalLengkap: evalResult.totalLengkap,
+          totalUpload: evalResult.totalUpload,
+          targetTotal: evalResult.targetTotal,
+          rincian: evalResult.rincian,
+          detailHalaman: evalResult.detailHalaman
+        });
       });
-    });
+    }
 
     // Urutkan records berdasarkan Kecamatan, Desa, dan Nomor TPS
     records.sort((a, b) => {
@@ -754,7 +758,7 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       try {
         const jsonStr = JSON.stringify(result);
         if (jsonStr.length < 100000) {
-          cache.put('CACHE_MONITORING_SUMMARY_ALL', jsonStr, 120);
+          cache.put('CACHE_MONITORING_SUMMARY_V3', jsonStr, 120);
         }
       } catch (errCache) {
         Logger.log('Monitoring cache put failed: ' + errCache.message);
@@ -881,6 +885,13 @@ function formatTPS(tps) {
   const num = parseInt(String(tps).replace(/\D/g, ''), 10);
   if (isNaN(num)) return '001';
   return ('000' + num).slice(-3);
+}
+
+function normalizeWilayahKey(kec, desa, tps) {
+  const k = String(kec || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+  const d = String(desa || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+  const t = formatTPS(tps);
+  return k + '|' + d + '|' + t;
 }
 
 function formatStandardFileName(jenisFile, lembaga, kecamatan, desa, tps) {

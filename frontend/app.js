@@ -52,7 +52,7 @@ const sessionUploadedDocsMap = new Map(); // Cache URL dokumen sesi aktif: "KEC|
 
 // Storage Keys untuk Stale-While-Revalidate (SWR) Instant Hydration
 const STORAGE_KEY_MASTER = 'SIMAMBIL_MASTER_DATA_CACHE_V2';
-const STORAGE_KEY_REKAP = 'SIMAMBIL_REKAP_SUMMARY_CACHE_V2';
+const STORAGE_KEY_REKAP = 'SIMAMBIL_REKAP_SUMMARY_CACHE_V3';
 
 /**
  * Helper Fetch dengan Timeout AbortController
@@ -76,6 +76,11 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
  * Memastikan operator tidak pernah menunggu data wilayah atau rekapitulasi saat membuka kembali aplikasi
  */
 function hydrateFromLocalCache() {
+  // Bersihkan cache rekap versi lama yang mengandung anomali duplikasi 1206
+  try {
+    localStorage.removeItem('SIMAMBIL_REKAP_SUMMARY_CACHE_V1');
+    localStorage.removeItem('SIMAMBIL_REKAP_SUMMARY_CACHE_V2');
+  } catch (eClean) {}
   try {
     const cachedMasterRaw = localStorage.getItem(STORAGE_KEY_MASTER);
     if (cachedMasterRaw) {
@@ -1860,15 +1865,58 @@ function onRekapDataLoaded(res) {
   const statBelum = document.getElementById('statBelumLengkap');
   const statKosong = document.getElementById('statKosong');
 
-  if (res.summary) {
-    if (statTotal) statTotal.textContent = res.summary.totalTPS !== undefined ? res.summary.totalTPS : 0;
-    if (statLengkap) statLengkap.textContent = res.summary.lengkap !== undefined ? res.summary.lengkap : 0;
-    if (statBelum) statBelum.textContent = res.summary.belumLengkap !== undefined ? res.summary.belumLengkap : 0;
-    if (statKosong) statKosong.textContent = res.summary.kosong !== undefined ? res.summary.kosong : 0;
-  }
+  const rawRecords = res.records || [];
 
-  allRekapRecords = res.records || [];
-  rekapKecamatanList = res.rekapKecamatan || [];
+  // Helper normalisasi key wilayah (kebal variasi spasi, strip, huruf besar/kecil)
+  const normKey = (k, d, t) => {
+    const ck = String(k || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+    const cd = String(d || '').trim().toUpperCase().replace(/[\s\-_]+/g, '');
+    const num = parseInt(String(t).replace(/\D/g, ''), 10);
+    const ct = isNaN(num) ? '001' : ('000' + num).slice(-3);
+    return ck + '|' + cd + '|' + ct;
+  };
+
+  // Deduplikasi & Normalisasi Records: Menghindari anomali duplikasi seperti TALAGA JAYA vs TALAGA-JAYA
+  const dedupedMap = new Map();
+  rawRecords.forEach(rec => {
+    const key = normKey(rec.kecamatan, rec.desa, rec.tps);
+    if (!dedupedMap.has(key)) {
+      // Normalisasi nama kecamatan ke bentuk baku dari masterDataCache jika tersedia
+      if (masterDataCache && masterDataCache.wilayah) {
+        const canonicalKecObj = masterDataCache.wilayah.find(w => w.kecamatan.replace(/[\s\-_]+/g, '') === rec.kecamatan.replace(/[\s\-_]+/g, ''));
+        if (canonicalKecObj) {
+          rec.kecamatan = canonicalKecObj.kecamatan;
+          const canonicalDesaObj = canonicalKecObj.desaList?.find(d => d.desa.replace(/[\s\-_]+/g, '') === rec.desa.replace(/[\s\-_]+/g, ''));
+          if (canonicalDesaObj) rec.desa = canonicalDesaObj.desa;
+        }
+      }
+      dedupedMap.set(key, rec);
+    } else {
+      const existing = dedupedMap.get(key);
+      // Prioritaskan record yang sudah memiliki upload dokumen
+      if (existing.status === 'KOSONG' && rec.status !== 'KOSONG') {
+        rec.kecamatan = existing.kecamatan;
+        dedupedMap.set(key, rec);
+      }
+    }
+  });
+
+  const cleanRecords = Array.from(dedupedMap.values());
+  allRekapRecords = cleanRecords;
+
+  // Hitung metrik ringkasan bersih dari records terverifikasi
+  const countLengkap = cleanRecords.filter(r => r.status === 'LENGKAP').length;
+  const countBelum = cleanRecords.filter(r => r.status === 'BELUM LENGKAP').length;
+  const countKosong = cleanRecords.filter(r => r.status === 'KOSONG').length;
+  const totalTPS = cleanRecords.length > 0 ? cleanRecords.length : (res.summary?.totalTPS || 0);
+
+  if (statTotal) statTotal.textContent = totalTPS;
+  if (statLengkap) statLengkap.textContent = countLengkap;
+  if (statBelum) statBelum.textContent = countBelum;
+  if (statKosong) statKosong.textContent = countKosong;
+
+  // Re-agregasi kecamatan otomatis dari cleanRecords agar total kecamatan murni 19 tanpa duplikat
+  rekapKecamatanList = getAggregatedRekapKecamatan(true);
 
   renderRekapWilayah();
   renderRekapList();
@@ -1933,16 +1981,26 @@ function filterRekapStatus(status) {
   renderRekapList();
 }
 
-function getAggregatedRekapKecamatan() {
-  if (rekapKecamatanList && rekapKecamatanList.length > 0) {
-    return rekapKecamatanList;
+function getAggregatedRekapKecamatan(force = false) {
+  if (!force && rekapKecamatanList && rekapKecamatanList.length > 0) {
+    // Validasi apakah rekapKecamatanList bebas dari anomali duplikasi
+    const uniqueKec = new Set(rekapKecamatanList.map(k => k.kecamatan.replace(/[\s\-_]+/g, '')));
+    if (uniqueKec.size === rekapKecamatanList.length && rekapKecamatanList.length <= 19) {
+      return rekapKecamatanList;
+    }
   }
 
   const kecMap = new Map();
   allRekapRecords.forEach(rec => {
-    if (!kecMap.has(rec.kecamatan)) {
-      kecMap.set(rec.kecamatan, {
-        kecamatan: rec.kecamatan,
+    let canonicalKec = rec.kecamatan;
+    if (masterDataCache && masterDataCache.wilayah) {
+      const matchKec = masterDataCache.wilayah.find(w => w.kecamatan.replace(/[\s\-_]+/g, '') === rec.kecamatan.replace(/[\s\-_]+/g, ''));
+      if (matchKec) canonicalKec = matchKec.kecamatan;
+    }
+
+    if (!kecMap.has(canonicalKec)) {
+      kecMap.set(canonicalKec, {
+        kecamatan: canonicalKec,
         totalTPS: 0,
         lengkap: 0,
         belumLengkap: 0,
@@ -1950,7 +2008,7 @@ function getAggregatedRekapKecamatan() {
         desaMap: new Map()
       });
     }
-    const kObj = kecMap.get(rec.kecamatan);
+    const kObj = kecMap.get(canonicalKec);
     kObj.totalTPS++;
     if (rec.status === 'LENGKAP') kObj.lengkap++;
     else if (rec.status === 'BELUM LENGKAP') kObj.belumLengkap++;

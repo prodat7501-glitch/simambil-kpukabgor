@@ -104,3 +104,15 @@
 4. **Backend Caching (Google Apps Script):**
    - Endpoint `getMasterData` di-cache di `CacheService.getScriptCache()` hingga 6 jam untuk merespon dalam waktu `<50ms`.
    - Endpoint `getMonitoringSummary` di-cache di `CacheService.getScriptCache()` selama 120 detik, dan secara otomatis di-evict (*cache invalidation*) setiap kali terjadi transaksi upload dokumen baru via `uploadCompiledDocument`.
+
+---
+
+### 7. ATURAN INTEGRITAS DATA WILAYAH & JUMLAH TOTAL TPS (1205 TPS)
+1. **Single Source of Truth (SSOT):**
+   - Basis data sheet `Master_Wilayah` adalah acuan tunggal dan mutlak untuk total **1205 TPS** dan **19 Kecamatan** di Kabupaten Gorontalo.
+2. **Normalisasi Kunci Wilayah (Space & Hyphen Insensitive):**
+   - Pencocokan riwayat unggahan pada `Log_Dokumen` dengan `Master_Wilayah` wajib dinormalisasi menggunakan fungsi `normalizeWilayahKey()`.
+   - Variasi penulisan seperti spasi, tanda strip, atau huruf besar/kecil (contoh: `TALAGA JAYA` vs `TALAGA-JAYA`, `BATUDAA PANTAI` vs `BATUDAA-PANTAI`) wajib terhubung ke entitas TPS resmi yang sama.
+3. **Pencegahan TPS Phantom / Duplikasi Anomali:**
+   - Sistem dilarang menambahkan baris TPS baru ke dalam ringkasan monitoring yang tidak tercantum dalam daftar resmi `Master_Wilayah`.
+   - Rekapitulasi pada antarmuka pengguna secara otomatis melakukan rekonsiliasi dan deduplikasi sehingga metrik `Total TPS` selalu konsisten pada angka **1205** dan jumlah kecamatan tetap **19**.
