@@ -213,7 +213,7 @@ function findSheetFlexible(ss, targetCanonicalName) {
   const normTarget = String(targetCanonicalName || '').toLowerCase().replace(/[\s\-_]+/g, '');
   const sheets = ss.getSheets();
   
-  // 1. Coba pencocokan tepat tanpa memperhatikan spasi/strip/kapitalisasi
+  // 1. Coba pencocokan tepat tanpa memperhatikan spasi/strip/kapitalisasi (misal: "rekap_progres" vs "Rekap Progres")
   for (let i = 0; i < sheets.length; i++) {
     const sName = sheets[i].getName().trim().toLowerCase().replace(/[\s\-_]+/g, '');
     if (sName === normTarget) {
@@ -221,21 +221,61 @@ function findSheetFlexible(ss, targetCanonicalName) {
     }
   }
 
-  // 2. Toleransi substring: Jika mencari sheet Pilkada, cocokkan sheet manapun yang mengandung kata "pilkada"
-  if (normTarget.includes('pilkada')) {
+  // 2. Pencocokan Master_Wilayah_Pilkada: Harus mengandung kata "wilayah" DAN "pilkada"
+  if (normTarget.includes('wilayah') && normTarget.includes('pilkada')) {
     for (let i = 0; i < sheets.length; i++) {
-      const sName = sheets[i].getName().trim().toLowerCase();
-      if (sName.includes('pilkada')) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('wilayah') && sLower.includes('pilkada')) {
         return sheets[i];
       }
     }
   }
 
-  // 3. Toleransi Master_Wilayah (Pemilu): Cocokkan jika mengandung "wilayah" dan bukan pilkada
-  if (normTarget === 'masterwilayah') {
+  // 3. Pencocokan Rekap_Progres_Pilkada: Harus mengandung kata "rekap" DAN "pilkada"
+  if (normTarget.includes('rekap') && normTarget.includes('pilkada')) {
     for (let i = 0; i < sheets.length; i++) {
-      const sName = sheets[i].getName().trim().toLowerCase();
-      if (sName.includes('wilayah') && !sName.includes('pilkada')) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('rekap') && sLower.includes('pilkada')) {
+        return sheets[i];
+      }
+    }
+  }
+
+  // 4. Pencocokan Rekap_Progres (Pemilu): Harus mengandung kata "rekap" dan BUKAN "pilkada"
+  if (normTarget.includes('rekap') && !normTarget.includes('pilkada')) {
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('rekap') && !sLower.includes('pilkada')) {
+        return sheets[i];
+      }
+    }
+  }
+
+  // 5. Pencocokan Master_Wilayah (Pemilu): Harus mengandung kata "wilayah" dan BUKAN "pilkada"
+  if (normTarget.includes('wilayah') && !normTarget.includes('pilkada')) {
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('wilayah') && !sLower.includes('pilkada')) {
+        return sheets[i];
+      }
+    }
+  }
+
+  // 6. Pencocokan Master_Kategori: Harus mengandung kata "kategori"
+  if (normTarget.includes('kategori')) {
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('kategori')) {
+        return sheets[i];
+      }
+    }
+  }
+
+  // 7. Pencocokan Log_Dokumen: Harus mengandung kata "log"
+  if (normTarget.includes('log')) {
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('log')) {
         return sheets[i];
       }
     }
@@ -1176,6 +1216,92 @@ function setupDatabase() {
 }
 
 /**
+ * Helper untuk menentukan pemisah parameter rumus Google Sheets secara dinamis (';' vs ',')
+ * Menghindari Kesalahan "Error mengurai formula" pada Regional Spreadsheet Indonesia / Eropa
+ */
+function getFormulaDelimiter(ss) {
+  try {
+    if (!ss) ss = getAppSpreadsheet();
+    if (!ss) return ';';
+    const loc = String(ss.getSpreadsheetLocale() || '').toLowerCase();
+    
+    // US, UK, Australia, New Zealand, Canada, Japan, China, India, Philippines, dll. gunakan koma (,)
+    const commaLocales = ['en_us', 'en_ca', 'en_gb', 'en_au', 'en_nz', 'en_in', 'en_ph', 'ja', 'zh'];
+    for (let i = 0; i < commaLocales.length; i++) {
+      if (loc.indexOf(commaLocales[i]) === 0) {
+        return ',';
+      }
+    }
+  } catch (e) {
+    Logger.log('getFormulaDelimiter error: ' + e.message);
+  }
+  // Default regional Indonesia dan format angka desimal koma adalah titik koma (;)
+  return ';';
+}
+
+/**
+ * Pemulihan Aman Master_Wilayah_Pilkada:
+ * Menghapus kolom rekap berlebih (kolom 6 ke atas) dan membersihkan formula error pada JUMLAH_DPT (kolom 5)
+ * Memastikan data kecamatan, desa, nomor TPS 100% aman dan utuh
+ */
+function repairMasterWilayahPilkada(ss) {
+  if (!ss) ss = getAppSpreadsheet();
+  if (!ss) return;
+
+  let sheetWilayahPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+  if (!sheetWilayahPilkada) {
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('wilayah') && sLower.includes('pilkada')) {
+        sheetWilayahPilkada = sheets[i];
+        break;
+      }
+    }
+  }
+
+  if (!sheetWilayahPilkada) return;
+
+  const lastCol = sheetWilayahPilkada.getLastColumn();
+  const lastRow = sheetWilayahPilkada.getLastRow();
+
+  // 1. Hapus kolom tambahan (kolom 6 ke atas: PILGUB, PILBUP, TOTAL_UPLOAD, STATUS_AKHIR)
+  if (lastCol > 5) {
+    const colsToDelete = lastCol - 5;
+    try {
+      sheetWilayahPilkada.deleteColumns(6, colsToDelete);
+      Logger.log('Berhasil memangkas ' + colsToDelete + ' kolom tambahan yang keliru di Master_Wilayah_Pilkada.');
+    } catch (eDel) {
+      Logger.log('deleteColumns fallback: ' + eDel.message);
+      sheetWilayahPilkada.getRange(1, 6, Math.max(1, lastRow), colsToDelete).clearContent();
+    }
+  }
+
+  // 2. Pastikan header standar: ID_TPS, NAMA_KEC, NAMA_DESA, NO_TPS, JUMLAH_DPT
+  ensureSheetHeaders(sheetWilayahPilkada, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'JUMLAH_DPT']);
+
+  // 3. Bersihkan formula error pada kolom 5 (JUMLAH_DPT)
+  if (lastRow > 1) {
+    const dptColRange = sheetWilayahPilkada.getRange(2, 5, lastRow - 1, 1);
+    const dptValues = dptColRange.getValues();
+    let cleaned = false;
+    for (let r = 0; r < dptValues.length; r++) {
+      const valStr = String(dptValues[r][0] || '').trim();
+      if (valStr.startsWith('=') || valStr.includes('#ERROR') || valStr.includes('#NAME') || valStr.includes('#REF')) {
+        dptValues[r][0] = '';
+        cleaned = true;
+      }
+    }
+    if (cleaned) {
+      dptColRange.setValues(dptValues);
+      Logger.log('Kolom JUMLAH_DPT Master_Wilayah_Pilkada berhasil dibersihkan dari formula error.');
+    }
+  }
+
+  SpreadsheetApp.flush();
+}
+
+/**
  * Setup Formula Otomatis untuk Sheet Rekap_Progres & Rekap_Progres_Pilkada (Alternatif A)
  * 100% Native Google Sheets Formula (COUNTIFS) - Zero server overhead saat operator upload
  */
@@ -1183,8 +1309,23 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
   if (!ss) ss = getAppSpreadsheet();
   if (!ss) return;
 
+  // Langkah 0: Perbaiki Master_Wilayah_Pilkada jika sebelumnya terkena polusi formula
+  repairMasterWilayahPilkada(ss);
+
+  const sep = getFormulaDelimiter(ss);
+
   // 1. Setup Sheet Rekap_Progres (Pemilu 5 Lembaga / 7 Lembaga SSOT)
-  let sheetRekap = findSheetFlexible(ss, SHEETS.REKAP) || ss.getSheetByName(SHEETS.REKAP);
+  let sheetRekap = ss.getSheetByName(SHEETS.REKAP);
+  if (!sheetRekap) {
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('rekap') && !sLower.includes('pilkada')) {
+        sheetRekap = sheets[i];
+        break;
+      }
+    }
+  }
   if (!sheetRekap) {
     sheetRekap = ss.insertSheet(SHEETS.REKAP);
   }
@@ -1196,7 +1337,18 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
   ];
   ensureSheetHeaders(sheetRekap, headers);
 
-  const sheetWilayah = findSheetFlexible(ss, SHEETS.WILAYAH) || ss.getSheetByName(SHEETS.WILAYAH);
+  let sheetWilayah = ss.getSheetByName(SHEETS.WILAYAH);
+  if (!sheetWilayah) {
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('wilayah') && !sLower.includes('pilkada')) {
+        sheetWilayah = sheets[i];
+        break;
+      }
+    }
+  }
+
   if (sheetWilayah && sheetWilayah.getLastRow() > 1) {
     const dataWilayah = sheetWilayah.getDataRange().getValues();
     const colIndices = detectWilayahColumnIndices(dataWilayah[0]);
@@ -1207,6 +1359,8 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
       if (forceRefresh && sheetRekap.getLastRow() > 1) {
         sheetRekap.getRange(2, 1, sheetRekap.getLastRow() - 1, headers.length).clearContent();
       }
+
+      sheetRekap.getRange(2, 4, numTps, 1).setNumberFormat('@');
 
       const rows = [];
       for (let i = 1; i < dataWilayah.length; i++) {
@@ -1222,15 +1376,15 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
           kec,
           desa,
           tps,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PPWP")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPR-RI")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPD-RI")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPRD-PROV")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "DPRD-KAB")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILGUB")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILBUP")>0, "✓", "-")`,
-          `=COUNTIF(E${rowIdx}:K${rowIdx}, "✓")`,
-          `=IF(COUNTIF(E${rowIdx}:I${rowIdx}, "✓")>=5, "LENGKAP", IF(L${rowIdx}>0, "BELUM LENGKAP", "KOSONG"))`
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "PPWP") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "PPWP"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "DPR-RI") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "DPR-RI"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "DPD-RI") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "DPD-RI"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "DPRD-PROV") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "DPRD-PROV"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "DPRD-KAB") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "DPRD-KAB"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "PILGUB") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "PILGUB"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "PILBUP") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "PILBUP"))>0${sep} "✓"${sep} "-")`,
+          `=COUNTIF(E${rowIdx}:K${rowIdx}${sep} "✓")`,
+          `=IF(COUNTIF(E${rowIdx}:I${rowIdx}${sep} "✓")>=5${sep} "LENGKAP"${sep} IF(L${rowIdx}>0${sep} "BELUM LENGKAP"${sep} "KOSONG"))`
         ]);
       }
 
@@ -1242,13 +1396,35 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
     }
   }
 
-  // 2. Setup Sheet Rekap_Progres_Pilkada jika Master_Wilayah_Pilkada tersedia data
-  const sheetWilayahPilkada = findSheetFlexible(ss, SHEETS.WILAYAH_PILKADA);
+  // 2. Setup Sheet Rekap_Progres_Pilkada secara eksplisit
+  let sheetWilayahPilkada = ss.getSheetByName(SHEETS.WILAYAH_PILKADA);
+  if (!sheetWilayahPilkada) {
+    const sheets = ss.getSheets();
+    for (let i = 0; i < sheets.length; i++) {
+      const sLower = sheets[i].getName().trim().toLowerCase();
+      if (sLower.includes('wilayah') && sLower.includes('pilkada')) {
+        sheetWilayahPilkada = sheets[i];
+        break;
+      }
+    }
+  }
+
   if (sheetWilayahPilkada && sheetWilayahPilkada.getLastRow() > 1) {
-    let sheetRekapPilkada = findSheetFlexible(ss, SHEETS.REKAP_PILKADA) || ss.getSheetByName(SHEETS.REKAP_PILKADA);
+    let sheetRekapPilkada = ss.getSheetByName(SHEETS.REKAP_PILKADA);
+    if (!sheetRekapPilkada) {
+      const sheets = ss.getSheets();
+      for (let i = 0; i < sheets.length; i++) {
+        const sLower = sheets[i].getName().trim().toLowerCase();
+        if (sLower.includes('rekap') && sLower.includes('pilkada')) {
+          sheetRekapPilkada = sheets[i];
+          break;
+        }
+      }
+    }
     if (!sheetRekapPilkada) {
       sheetRekapPilkada = ss.insertSheet(SHEETS.REKAP_PILKADA);
     }
+
     const headersPilkada = ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'PILGUB', 'PILBUP', 'TOTAL_UPLOAD', 'STATUS_AKHIR'];
     ensureSheetHeaders(sheetRekapPilkada, headersPilkada);
 
@@ -1260,6 +1436,8 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
       if (forceRefresh && sheetRekapPilkada.getLastRow() > 1) {
         sheetRekapPilkada.getRange(2, 1, sheetRekapPilkada.getLastRow() - 1, headersPilkada.length).clearContent();
       }
+
+      sheetRekapPilkada.getRange(2, 4, numPilkadaTps, 1).setNumberFormat('@');
 
       const rowsP = [];
       for (let i = 1; i < dataPilkada.length; i++) {
@@ -1275,10 +1453,10 @@ function setupRekapProgresFormulas(ss, forceRefresh) {
           kec,
           desa,
           tps,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILGUB")>0, "✓", "-")`,
-          `=IF(COUNTIFS(Log_Dokumen!$E:$E, B${rowIdx}, Log_Dokumen!$F:$F, C${rowIdx}, Log_Dokumen!$G:$G, D${rowIdx}, Log_Dokumen!$D:$D, "PILBUP")>0, "✓", "-")`,
-          `=COUNTIF(E${rowIdx}:F${rowIdx}, "✓")`,
-          `=IF(G${rowIdx}=2, "LENGKAP", IF(G${rowIdx}>0, "BELUM LENGKAP", "KOSONG"))`
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "PILGUB") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "PILGUB"))>0${sep} "✓"${sep} "-")`,
+          `=IF((COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} TEXT(D${rowIdx}${sep} "000")${sep} 'Log_Dokumen'!$D:$D${sep} "PILBUP") + COUNTIFS('Log_Dokumen'!$E:$E${sep} B${rowIdx}${sep} 'Log_Dokumen'!$F:$F${sep} C${rowIdx}${sep} 'Log_Dokumen'!$G:$G${sep} ""&D${rowIdx}${sep} 'Log_Dokumen'!$D:$D${sep} "PILBUP"))>0${sep} "✓"${sep} "-")`,
+          `=COUNTIF(E${rowIdx}:F${rowIdx}${sep} "✓")`,
+          `=IF(G${rowIdx}>=2${sep} "LENGKAP"${sep} IF(G${rowIdx}>0${sep} "BELUM LENGKAP"${sep} "KOSONG"))`
         ]);
       }
 
@@ -1300,8 +1478,8 @@ function initRekapProgres() {
   const ss = SpreadsheetApp.getActiveSpreadsheet() || getAppSpreadsheet();
   if (!ss) throw new Error('Spreadsheet tidak ditemukan.');
   setupRekapProgresFormulas(ss, true);
-  Logger.log('Inisialisasi formula Rekap_Progres selesai!');
-  return 'Inisialisasi formula Rekap_Progres selesai!';
+  Logger.log('Inisialisasi formula Rekap_Progres & Rekap_Progres_Pilkada selesai!');
+  return 'Inisialisasi formula Rekap_Progres & Rekap_Progres_Pilkada selesai!';
 }
 
 /**
