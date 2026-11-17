@@ -38,6 +38,38 @@ const NAMA_LEMBAGA_FULL = {
   'PILBUP': '7. Bupati & Wabup (PILBUP)'
 };
 
+// Pemisahan Kategori Pemilihan: Pemilu (5 Lembaga) vs Pilkada (2 Lembaga)
+const KATEGORI_LEMBAGA_MAP = {
+  'PEMILU': ['PPWP', 'DPR-RI', 'DPD-RI', 'DPRD-PROV', 'DPRD-KAB'],
+  'PILKADA': ['PILGUB', 'PILBUP']
+};
+
+const LEMBAGA_OPTIONS_BY_KATEGORI = {
+  'PEMILU': [
+    { value: 'PPWP', label: '1. PPWP (Presiden & Wapres)' },
+    { value: 'DPR-RI', label: '2. DPR RI' },
+    { value: 'DPD-RI', label: '3. DPD RI' },
+    { value: 'DPRD-PROV', label: '4. DPRD Provinsi' },
+    { value: 'DPRD-KAB', label: '5. DPRD Kabupaten/Kota' }
+  ],
+  'PILKADA': [
+    { value: 'PILGUB', label: '1. Gubernur & Wagub (PILGUB)' },
+    { value: 'PILBUP', label: '2. Bupati & Wabup (PILBUP)' }
+  ]
+};
+
+function getKategoriForLembaga(kode) {
+  return (kode === 'PILGUB' || kode === 'PILBUP') ? 'PILKADA' : 'PEMILU';
+}
+
+function getTargetKeysForCategory(kategori) {
+  if (kategori === 'PEMILU') return ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB'];
+  if (kategori === 'PILKADA') return ['PILGUB', 'PILBUP'];
+  return ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+}
+
+let currentRekapKategori = 'PEMILU'; // 'PEMILU', 'PILKADA', atau 'SEMUA'
+
 let pagesState = []; // [{ page: 1, dataUrl: null, rotation: 0 }, ...]
 let activeSlotIndex = null;
 let currentFacingMode = 'environment';
@@ -645,6 +677,14 @@ async function loadMasterData() {
   }
 }
 
+function getActiveWilayahList() {
+  const kategori = document.getElementById('selectKategoriPemilihan')?.value || '';
+  if (kategori === 'PILKADA' && masterDataCache && masterDataCache.wilayahPilkada && masterDataCache.wilayahPilkada.length > 0) {
+    return masterDataCache.wilayahPilkada;
+  }
+  return (masterDataCache && masterDataCache.wilayah) || [];
+}
+
 function handleMasterDataSuccess(res) {
   if (!res || res.status !== 'success') return;
   masterDataCache = res;
@@ -668,7 +708,8 @@ function handleMasterDataSuccess(res) {
     selectFilterKec.innerHTML = '<option value="">-- Semua Kecamatan (19 Kecamatan) --</option>';
   }
 
-  const wilayah = res.wilayah || [];
+  const wilayah = getActiveWilayahList();
+  const allMasterWilayah = res.wilayah || [];
 
   if (wilayah.length === 0) {
     if (selectKec) {
@@ -694,7 +735,10 @@ function handleMasterDataSuccess(res) {
         opt.textContent = item.kecamatan;
         selectKec.appendChild(opt);
       }
+    });
 
+    // Filter rekap selalu menampilkan seluruh 19 kecamatan SSOT
+    allMasterWilayah.forEach(item => {
       if (selectFilterKec) {
         const optFilter = document.createElement('option');
         optFilter.value = item.kecamatan;
@@ -762,7 +806,8 @@ function onKecamatanChanged(preserveDesa, preserveTps) {
     return;
   }
 
-  const kecObj = masterDataCache.wilayah.find(w => w.kecamatan === selectedKec);
+  const wilayah = getActiveWilayahList();
+  const kecObj = wilayah.find(w => w.kecamatan === selectedKec);
   if (kecObj && kecObj.desaList) {
     kecObj.desaList.forEach(d => {
       const opt = document.createElement('option');
@@ -807,7 +852,8 @@ function onDesaChanged(preserveTps) {
     return;
   }
 
-  const kecObj = masterDataCache.wilayah.find(w => w.kecamatan === selectedKec);
+  const wilayah = getActiveWilayahList();
+  const kecObj = wilayah.find(w => w.kecamatan === selectedKec);
   if (kecObj) {
     const desaObj = kecObj.desaList.find(d => d.desa === selectedDesa);
     if (desaObj && desaObj.tpsList) {
@@ -889,10 +935,79 @@ function formatTpsNum(tps) {
 
 /**
  * ==============================================================================
- * 3. MANAJEMEN SLOT HALAMAN & UI GRID (1 - 20)
+ * 3. MANAJEMEN KATEGORI PEMILIHAN, LEMBAGA & SLOT HALAMAN (1 - 20)
  * SOT: 03-UI-GUIDELINE.md & 06-BUSINESS-RULES.md
  * ==============================================================================
  */
+
+function onKategoriPemilihanChanged(preserveLembaga = false) {
+  const selectKategori = document.getElementById('selectKategoriPemilihan');
+  const kategori = selectKategori ? selectKategori.value : '';
+  applyKategoriPemilihanChange(kategori, preserveLembaga);
+}
+
+function applyKategoriPemilihanChange(kategori, preserveLembaga = false) {
+  const selectLemb = document.getElementById('selectLembaga');
+  const trigLemb = document.getElementById('triggerLembaga');
+  const currentLembaga = selectLemb ? selectLemb.value : '';
+
+  if (!selectLemb) return;
+
+  if (!kategori) {
+    selectLemb.innerHTML = '<option value="">-- Pilih Jenis Pemilihan Terlebih Dahulu --</option>';
+    selectLemb.value = '';
+    selectLemb.disabled = true;
+    if (trigLemb) {
+      trigLemb.classList.add('disabled');
+      trigLemb.setAttribute('aria-disabled', 'true');
+    }
+  } else {
+    const list = LEMBAGA_OPTIONS_BY_KATEGORI[kategori] || [];
+    selectLemb.innerHTML = '<option value="">-- Pilih Jenis Lembaga --</option>';
+    list.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.value;
+      opt.textContent = item.label;
+      selectLemb.appendChild(opt);
+    });
+    selectLemb.disabled = false;
+    if (trigLemb) {
+      trigLemb.classList.remove('disabled');
+      trigLemb.removeAttribute('aria-disabled');
+    }
+
+    if (preserveLembaga && list.some(item => item.value === currentLembaga)) {
+      selectLemb.value = currentLembaga;
+    } else {
+      selectLemb.value = '';
+    }
+  }
+
+  // Jika master data memiliki partisi wilayah khusus Pilkada, perbarui dropdown kecamatan
+  if (masterDataCache && masterDataCache.wilayahPilkada && masterDataCache.wilayahPilkada.length > 0) {
+    const selectKec = document.getElementById('selectKecamatan');
+    const currentKec = selectKec ? selectKec.value : '';
+    const activeWilayah = getActiveWilayahList();
+    if (selectKec) {
+      selectKec.innerHTML = '<option value="">-- Pilih Kecamatan --</option>';
+      activeWilayah.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.kecamatan;
+        opt.textContent = item.kecamatan;
+        selectKec.appendChild(opt);
+      });
+      if (currentKec && activeWilayah.some(w => w.kecamatan === currentKec)) {
+        selectKec.value = currentKec;
+      } else {
+        selectKec.value = '';
+        onKecamatanChanged();
+      }
+    }
+  }
+
+  onLembagaSelectionChanged();
+  syncAllPickers();
+}
 
 function onLembagaSelectionChanged() {
   updateGeneratedFilename();
@@ -903,6 +1018,7 @@ function onLembagaSelectionChanged() {
 }
 
 function updateTargetPageUI() {
+  const selectedKategori = document.getElementById('selectKategoriPemilihan')?.value || '';
   const selectedLembaga = document.getElementById('selectLembaga')?.value || '';
   const targetPages = selectedLembaga ? (TARGET_HALAMAN[selectedLembaga] || 3) : 0;
   const filledCount = pagesState.filter(p => p.dataUrl).length;
@@ -916,8 +1032,12 @@ function updateTargetPageUI() {
   }
 
   if (targetInfoStatus) {
-    if (!selectedLembaga) {
+    if (!selectedKategori) {
       targetInfoStatus.textContent = 'Pilih Pemilihan';
+      targetInfoStatus.style.color = '#64748b';
+      targetInfoStatus.style.background = '#f1f5f9';
+    } else if (!selectedLembaga) {
+      targetInfoStatus.textContent = 'Pilih Lembaga';
       targetInfoStatus.style.color = '#64748b';
       targetInfoStatus.style.background = '#f1f5f9';
     } else if (filledCount >= targetPages) {
@@ -938,8 +1058,10 @@ function updateTargetPageUI() {
   if (slotHint) {
     if (selectedLembaga) {
       slotHint.innerHTML = `Ketuk slot foto untuk memotret dokumen. Jumlah slot disesuaikan untuk <strong>${selectedLembaga}</strong>: <strong>${targetPages} Halaman</strong>.`;
+    } else if (selectedKategori) {
+      slotHint.innerHTML = `Silakan tentukan <strong>Jenis Lembaga</strong> pada kategori <strong>${selectedKategori}</strong> terlebih dahulu.`;
     } else {
-      slotHint.innerHTML = `Silakan tentukan <strong>Jenis Berkas</strong> dan <strong>Jenis Pemilihan / Lembaga</strong> terlebih dahulu.`;
+      slotHint.innerHTML = `Silakan tentukan <strong>Jenis Pemilihan (Pemilu/Pilkada)</strong> dan <strong>Jenis Lembaga</strong> terlebih dahulu.`;
     }
   }
 }
@@ -949,10 +1071,11 @@ function renderPageSlots() {
   if (!container) return;
   container.innerHTML = '';
 
+  const selectedKategori = document.getElementById('selectKategoriPemilihan')?.value || '';
   const selectedLembaga = document.getElementById('selectLembaga')?.value || '';
   const targetPages = getTargetPagesForCurrentLembaga();
 
-  if (!selectedLembaga || targetPages === 0) {
+  if (!selectedKategori || !selectedLembaga || targetPages === 0) {
     container.classList.remove('slots-3');
     pagesState = [];
     const emptyNotice = document.createElement('div');
@@ -965,11 +1088,21 @@ function renderPageSlots() {
     emptyNotice.style.background = '#f8fafc';
     emptyNotice.style.border = '1.5px dashed #cbd5e1';
     emptyNotice.style.borderRadius = '10px';
-    emptyNotice.innerHTML = `
-      <div style="font-size: 26px; margin-bottom: 8px;">🏛️</div>
-      <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">Pilih Jenis Pemilihan Terlebih Dahulu</div>
-      <div>Silakan tentukan <strong>Jenis Pemilihan / Lembaga</strong> pada formulir di atas untuk menampilkan slot foto dokumen.</div>
-    `;
+    
+    if (!selectedKategori) {
+      emptyNotice.innerHTML = `
+        <div style="font-size: 26px; margin-bottom: 8px;">🗳️</div>
+        <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">Pilih Jenis Pemilihan Terlebih Dahulu</div>
+        <div>Silakan tentukan <strong>Jenis Pemilihan (Pemilu atau Pilkada)</strong> pada formulir di atas untuk menampilkan pilihan lembaga dan slot foto dokumen.</div>
+      `;
+    } else {
+      const isPemilu = selectedKategori === 'PEMILU';
+      emptyNotice.innerHTML = `
+        <div style="font-size: 26px; margin-bottom: 8px;">🏛️</div>
+        <div style="font-weight: 700; color: #1e293b; margin-bottom: 4px;">Pilih Jenis Lembaga Terlebih Dahulu</div>
+        <div>Silakan tentukan <strong>Jenis Lembaga</strong> (${isPemilu ? '5 Lembaga Pemilu' : '2 Lembaga Pilkada'}) pada formulir di atas untuk menampilkan slot foto dokumen.</div>
+      `;
+    }
     container.appendChild(emptyNotice);
 
     const badge = document.getElementById('pageCountBadge');
@@ -1067,19 +1200,21 @@ function onSlotClicked(index) {
 
 function confirmResetPages() {
   const filledCount = pagesState.filter(p => p.dataUrl).length;
+  const selectKategori = document.getElementById('selectKategoriPemilihan');
+  const selectJenis = document.getElementById('selectJenisFile');
+  const selectLemb = document.getElementById('selectLembaga');
   const selectKec = document.getElementById('selectKecamatan');
   const selectDesa = document.getElementById('selectDesa');
   const selectTPS = document.getElementById('selectTPS');
-  const selectJenis = document.getElementById('selectJenisFile');
-  const selectLemb = document.getElementById('selectLembaga');
 
+  const kategori = selectKategori?.value || '';
   const jenis = selectJenis?.value || '';
   const lembaga = selectLemb?.value || '';
   const kec = selectKec?.value || '';
   const desa = selectDesa?.value || '';
   const tps = selectTPS?.value || '';
   const hasRegionSelected = !!(kec || desa || tps);
-  const hasMetaSelected = !!(jenis || lembaga);
+  const hasMetaSelected = !!(kategori || jenis || lembaga);
 
   // Jika tidak ada foto, belum ada wilayah, dan belum ada metadata yang dipilih
   if (filledCount === 0 && !hasRegionSelected && !hasMetaSelected) {
@@ -1088,6 +1223,7 @@ function confirmResetPages() {
   }
 
   const labelParts = [];
+  if (kategori) labelParts.push(kategori);
   if (jenis) labelParts.push(jenis);
   if (lembaga) labelParts.push(lembaga);
   if (kec) labelParts.push(kec);
@@ -1105,8 +1241,9 @@ function confirmResetPages() {
       secondaryText: 'Hapus Foto Saja (Formulir Tetap)',
       cancelText: 'Batal',
       onConfirm: () => {
+        if (selectKategori) selectKategori.value = '';
+        applyKategoriPemilihanChange('');
         if (selectJenis) selectJenis.value = '';
-        if (selectLemb) selectLemb.value = '';
         initPagesState();
         renderPageSlots();
         resetWilayahSelectionToDefault();
@@ -1146,8 +1283,9 @@ function confirmResetPages() {
     confirmText: 'Ya, Reset Formulir',
     cancelText: 'Batal',
     onConfirm: () => {
+      if (selectKategori) selectKategori.value = '';
+      applyKategoriPemilihanChange('');
       if (selectJenis) selectJenis.value = '';
-      if (selectLemb) selectLemb.value = '';
       initPagesState();
       renderPageSlots();
       resetWilayahSelectionToDefault();
@@ -1163,17 +1301,32 @@ function confirmResetPages() {
  * ==============================================================================
  */
 function openCameraModal(index) {
+  const kategori = document.getElementById('selectKategoriPemilihan')?.value || '';
   const jenis = document.getElementById('selectJenisFile')?.value || '';
   const lembaga = document.getElementById('selectLembaga')?.value || '';
   const kec = document.getElementById('selectKecamatan')?.value || '';
   const desa = document.getElementById('selectDesa')?.value || '';
   const tps = document.getElementById('selectTPS')?.value || '';
 
+  if (!kategori) {
+    showAppDialog({
+      title: 'Pilih Jenis Pemilihan Terlebih Dahulu',
+      type: 'warning',
+      message: 'Silakan tentukan pilihan <strong>Jenis Pemilihan (Pemilu atau Pilkada)</strong> pada formulir di atas sebelum mengambil foto dokumen.',
+      confirmText: 'Pilih Sekarang',
+      onConfirm: () => {
+        const trig = document.getElementById('triggerKategoriPemilihan');
+        if (trig) trig.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    return;
+  }
+
   if (!jenis || !lembaga) {
     showAppDialog({
       title: 'Pilih Metadata Terlebih Dahulu',
       type: 'warning',
-      message: 'Silakan tentukan pilihan <strong>Jenis Berkas Dokumen</strong> dan <strong>Jenis Pemilihan / Lembaga</strong> pada formulir di atas sebelum mengambil foto dokumen.',
+      message: 'Silakan tentukan pilihan <strong>Jenis Berkas Dokumen</strong> dan <strong>Jenis Lembaga</strong> pada formulir di atas sebelum mengambil foto dokumen.',
       confirmText: 'Pilih Sekarang',
       onConfirm: () => {
         const trig = !jenis ? document.getElementById('triggerJenisFile') : document.getElementById('triggerLembaga');
@@ -1602,17 +1755,32 @@ async function startRenderAndUpload() {
     return;
   }
 
+  const kategori = document.getElementById('selectKategoriPemilihan')?.value || '';
   const jenisFile = document.getElementById('selectJenisFile')?.value || '';
   const lembaga = document.getElementById('selectLembaga')?.value || '';
   const kecamatan = document.getElementById('selectKecamatan')?.value || '';
   const desa = document.getElementById('selectDesa')?.value || '';
   const tps = document.getElementById('selectTPS')?.value || '';
 
+  if (!kategori) {
+    showAppDialog({
+      title: 'Pilih Jenis Pemilihan Terlebih Dahulu',
+      type: 'warning',
+      message: 'Harap tentukan pilihan <strong>Jenis Pemilihan (Pemilu atau Pilkada)</strong> terlebih dahulu sebelum menyimpan dokumen.',
+      confirmText: 'Pilih Sekarang',
+      onConfirm: () => {
+        const trig = document.getElementById('triggerKategoriPemilihan');
+        if (trig) trig.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+    return;
+  }
+
   if (!jenisFile || !lembaga) {
     showAppDialog({
       title: 'Pilih Metadata Terlebih Dahulu',
       type: 'warning',
-      message: 'Harap tentukan pilihan <strong>Jenis Berkas Dokumen</strong> dan <strong>Jenis Pemilihan / Lembaga</strong> terlebih dahulu sebelum menyimpan dokumen.',
+      message: 'Harap tentukan pilihan <strong>Jenis Berkas Dokumen</strong> dan <strong>Jenis Lembaga</strong> terlebih dahulu sebelum menyimpan dokumen.',
       confirmText: 'Pilih Sekarang',
       onConfirm: () => {
         const trig = !jenisFile ? document.getElementById('triggerJenisFile') : document.getElementById('triggerLembaga');
@@ -1739,6 +1907,7 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
       mimeType: 'application/pdf',
       base64Data: pdfBase64,
       metadata: {
+        kategori: getKategoriForLembaga(lembaga),
         jenisFile: jenisFile,
         lembaga: lembaga,
         kecamatan: kecamatan,
@@ -2000,6 +2169,7 @@ async function loadRekapData(isManualRefresh = false) {
     action: 'getMonitoringSummary',
     kecamatan: filterKec,
     desa: filterDesa,
+    kategori: currentRekapKategori,
     _t: Date.now().toString()
   });
 
@@ -2118,18 +2288,120 @@ function onRekapDataLoaded(res) {
   const cleanRecords = Array.from(dedupedMap.values());
   allRekapRecords = cleanRecords;
 
-  // Hitung metrik ringkasan bersih dari records terverifikasi
-  const countLengkap = cleanRecords.filter(r => r.status === 'LENGKAP').length;
-  const countBelum = cleanRecords.filter(r => r.status === 'BELUM LENGKAP').length;
-  const countKosong = cleanRecords.filter(r => r.status === 'KOSONG').length;
-  const totalTPS = cleanRecords.length > 0 ? cleanRecords.length : (res.summary?.totalTPS || 0);
+  // Evaluasi metrik ringkasan dan status per record berbasis kategori aktif (Pemilu 5 / Pilkada 2 / Semua 7)
+  recalculateRekapForCurrentCategory();
+}
 
-  if (statTotal) statTotal.textContent = totalTPS;
+/**
+ * Pengaturan Kategori Pemilihan pada Rekapitulasi (Segmented Buttons & Filter Dropdown)
+ * Memisahkan evaluasi kelengkapan dokumen Pemilu (5 Lembaga) vs Pilkada (2 Lembaga)
+ */
+function setRekapCategory(kategori) {
+  if (!kategori) kategori = 'PEMILU';
+  currentRekapKategori = kategori;
+
+  // 1. Sinkronisasi segmented buttons
+  const tabPemilu = document.getElementById('btnCatPemilu');
+  const tabPilkada = document.getElementById('btnCatPilkada');
+  const tabSemua = document.getElementById('btnCatSemua');
+  if (tabPemilu) tabPemilu.classList.toggle('active', kategori === 'PEMILU');
+  if (tabPilkada) tabPilkada.classList.toggle('active', kategori === 'PILKADA');
+  if (tabSemua) tabSemua.classList.toggle('active', kategori === 'SEMUA');
+
+  // 2. Sinkronisasi dropdown filter di Filter Card
+  const filterSelect = document.getElementById('filterRekapKategori');
+  if (filterSelect && filterSelect.value !== kategori) {
+    filterSelect.value = kategori;
+  }
+
+  // 3. Update Label Kartu KPI Lengkap
+  const labelEl = document.getElementById('statLengkapLabel');
+  if (labelEl) {
+    if (kategori === 'PEMILU') labelEl.textContent = '🟢 Lengkap (5/5)';
+    else if (kategori === 'PILKADA') labelEl.textContent = '🟢 Lengkap (2/2)';
+    else labelEl.textContent = '🟢 Lengkap (7/7)';
+  }
+
+  syncAllPickers();
+
+  // 4. Hitung ulang rekapitulasi lokal secara instan (0ms)
+  recalculateRekapForCurrentCategory();
+}
+
+function onRekapKategoriFilterChanged() {
+  const filterSelect = document.getElementById('filterRekapKategori');
+  const val = filterSelect ? filterSelect.value : 'PEMILU';
+  setRekapCategory(val);
+}
+
+function evaluateRecordForCategory(rec, kategori = currentRekapKategori) {
+  const keys = getTargetKeysForCategory(kategori);
+  let completeCount = 0;
+  let hasAnyUpload = false;
+
+  keys.forEach(k => {
+    const detail = rec.detailHalaman && rec.detailHalaman[k];
+    const targetHal = TARGET_HALAMAN[k] || 3;
+    if (detail) {
+      if (detail.actual > 0) hasAnyUpload = true;
+      if (detail.lengkap || detail.actual >= targetHal) completeCount++;
+    } else if (rec.rincian && rec.rincian[k]) {
+      hasAnyUpload = true;
+      completeCount++;
+    }
+  });
+
+  let status = 'KOSONG';
+  if (completeCount === keys.length) {
+    status = 'LENGKAP';
+  } else if (hasAnyUpload || completeCount > 0) {
+    status = 'BELUM LENGKAP';
+  }
+
+  return {
+    status: status,
+    completeCount: completeCount,
+    totalTarget: keys.length,
+    targetKeys: keys
+  };
+}
+
+function recalculateRekapForCurrentCategory() {
+  if (!allRekapRecords || allRekapRecords.length === 0) return;
+
+  let countLengkap = 0;
+  let countBelum = 0;
+  let countKosong = 0;
+
+  allRekapRecords.forEach(rec => {
+    const evalResult = evaluateRecordForCategory(rec, currentRekapKategori);
+    rec.catStatus = evalResult.status;
+    rec.catCompleteCount = evalResult.completeCount;
+    rec.catTotalTarget = evalResult.totalTarget;
+
+    if (rec.catStatus === 'LENGKAP') countLengkap++;
+    else if (rec.catStatus === 'BELUM LENGKAP') countBelum++;
+    else countKosong++;
+  });
+
+  const statTotal = document.getElementById('statTotalTPS');
+  const statLengkap = document.getElementById('statLengkap');
+  const statBelum = document.getElementById('statBelumLengkap');
+  const statKosong = document.getElementById('statKosong');
+
+  if (statTotal) statTotal.textContent = allRekapRecords.length;
   if (statLengkap) statLengkap.textContent = countLengkap;
   if (statBelum) statBelum.textContent = countBelum;
   if (statKosong) statKosong.textContent = countKosong;
 
-  // Re-agregasi kecamatan otomatis dari cleanRecords agar total kecamatan murni 19 tanpa duplikat
+  const labelEl = document.getElementById('statLengkapLabel');
+  if (labelEl) {
+    if (currentRekapKategori === 'PEMILU') labelEl.textContent = '🟢 Lengkap (5/5)';
+    else if (currentRekapKategori === 'PILKADA') labelEl.textContent = '🟢 Lengkap (2/2)';
+    else labelEl.textContent = '🟢 Lengkap (7/7)';
+  }
+
+  // Re-agregasi kecamatan otomatis dari records terverifikasi agar total kecamatan murni 19 tanpa duplikat
   rekapKecamatanList = getAggregatedRekapKecamatan(true);
 
   renderRekapWilayah();
@@ -2224,8 +2496,9 @@ function getAggregatedRekapKecamatan(force = false) {
     }
     const kObj = kecMap.get(canonicalKec);
     kObj.totalTPS++;
-    if (rec.status === 'LENGKAP') kObj.lengkap++;
-    else if (rec.status === 'BELUM LENGKAP') kObj.belumLengkap++;
+    const status = rec.catStatus || rec.status;
+    if (status === 'LENGKAP') kObj.lengkap++;
+    else if (status === 'BELUM LENGKAP') kObj.belumLengkap++;
     else kObj.kosong++;
 
     if (!kObj.desaMap.has(rec.desa)) {
@@ -2241,8 +2514,8 @@ function getAggregatedRekapKecamatan(force = false) {
     }
     const dObj = kObj.desaMap.get(rec.desa);
     dObj.totalTPS++;
-    if (rec.status === 'LENGKAP') dObj.lengkap++;
-    else if (rec.status === 'BELUM LENGKAP') {
+    if (status === 'LENGKAP') dObj.lengkap++;
+    else if (status === 'BELUM LENGKAP') {
       dObj.belumLengkap++;
       dObj.tpsBelumLengkap.push(rec.tps);
     } else {
@@ -2480,7 +2753,8 @@ function renderRekapList() {
   if (!container) return;
 
   let filtered = allRekapRecords.filter(r => {
-    if (currentRekapFilterStatus !== 'ALL' && r.status !== currentRekapFilterStatus) {
+    const status = r.catStatus || r.status;
+    if (currentRekapFilterStatus !== 'ALL' && status !== currentRekapFilterStatus) {
       return false;
     }
     if (searchKeyword) {
@@ -2494,8 +2768,10 @@ function renderRekapList() {
 
   // Urutkan filtered: TPS yang memiliki dokumen (BELUM LENGKAP atau LENGKAP) selalu tampil di urutan teratas
   filtered.sort((a, b) => {
-    const aHasDoc = a.status !== 'KOSONG' ? 1 : 0;
-    const bHasDoc = b.status !== 'KOSONG' ? 1 : 0;
+    const aStatus = a.catStatus || a.status;
+    const bStatus = b.catStatus || b.status;
+    const aHasDoc = aStatus !== 'KOSONG' ? 1 : 0;
+    const bHasDoc = bStatus !== 'KOSONG' ? 1 : 0;
     if (aHasDoc !== bHasDoc) {
       return bHasDoc - aHasDoc; // Status aktif (LENGKAP/BELUM LENGKAP) tampil paling awal
     }
@@ -2504,8 +2780,8 @@ function renderRekapList() {
     return a.tps.localeCompare(b.tps);
   });
 
-  const activeList = filtered.filter(r => r.status !== 'KOSONG');
-  const emptyList = filtered.filter(r => r.status === 'KOSONG');
+  const activeList = filtered.filter(r => (r.catStatus || r.status) !== 'KOSONG');
+  const emptyList = filtered.filter(r => (r.catStatus || r.status) === 'KOSONG');
   // Seluruh TPS yang ada dokumennya wajib selalu dirender penuh, disusul hingga 200 TPS kosong
   const displayList = [...activeList, ...emptyList.slice(0, 200)];
 
@@ -2531,20 +2807,21 @@ function renderRekapList() {
     const card = document.createElement('div');
     card.className = 'rekap-item-card';
 
+    const recStatus = rec.catStatus || rec.status;
     let badgeClass = 'kosong';
     let statusIcon = '🔴';
-    if (rec.status === 'LENGKAP') {
+    if (recStatus === 'LENGKAP') {
       badgeClass = 'lengkap';
       statusIcon = '🟢';
-    } else if (rec.status === 'BELUM LENGKAP') {
+    } else if (recStatus === 'BELUM LENGKAP') {
       badgeClass = 'belum';
       statusIcon = '🟡';
     }
 
-    const totalLengkap = rec.totalLengkap !== undefined ? rec.totalLengkap : (rec.status === 'LENGKAP' ? 7 : (rec.totalUpload || 0));
+    const targetKeys = getTargetKeysForCategory(currentRekapKategori);
+    const catCompleteCount = rec.catCompleteCount !== undefined ? rec.catCompleteCount : (recStatus === 'LENGKAP' ? targetKeys.length : (rec.totalUpload || 0));
 
-    // Analisis apakah ada dokumen yang halamannya hilang / kurang dari target
-    const targetKeys = ['PPWP', 'DPD-RI', 'DPR-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+    // Analisis apakah ada dokumen yang halamannya hilang / kurang dari target pada kategori aktif
     const missingDocs = [];
 
     targetKeys.forEach(k => {
@@ -2580,7 +2857,7 @@ function renderRekapList() {
       `;
     }
 
-    // Mini Chips 7 Lembaga
+    // Mini Chips Lembaga Sesuai Kategori Aktif (5 Pemilu / 2 Pilkada / 7 Semua)
     let chipsHtml = '<div class="rekap-chips-row">';
     targetKeys.forEach(k => {
       const short = SHORT_LEMBAGA_NAMES[k] || k;
@@ -2672,17 +2949,17 @@ function renderRekapList() {
       <div class="rekap-item-top" onclick="selectTPSFromRekap('${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}')">
         <div class="rekap-item-left">
           <span class="rekap-tps-title">TPS ${rec.tps} - ${rec.desa}</span>
-          <span class="rekap-tps-sub">Kec. ${rec.kecamatan} • Kelengkapan: <strong>${totalLengkap}/7 Lembaga</strong></span>
+          <span class="rekap-tps-sub">Kec. ${rec.kecamatan} • Kelengkapan: <strong>${catCompleteCount}/${targetKeys.length} Lembaga</strong></span>
         </div>
         <div>
-          <span class="status-badge ${badgeClass}" style="white-space: nowrap;">${statusIcon} ${rec.status}</span>
+          <span class="status-badge ${badgeClass}" style="white-space: nowrap;">${statusIcon} ${recStatus}</span>
         </div>
       </div>
       ${alertBannerHtml}
       ${chipsHtml}
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 4px; margin-top: 2px;">
         <button type="button" class="rekap-toggle-btn" onclick="event.stopPropagation(); toggleRekapBreakdown('${cardId}', this)">
-          <span>📋 Rincian Halaman 7 Lembaga</span> <span class="arrow-icon">▾</span>
+          <span>📋 Rincian Halaman ${targetKeys.length} Lembaga</span> <span class="arrow-icon">▾</span>
         </button>
         <span style="font-size: 10px; color: var(--text-muted); cursor: pointer;" onclick="selectTPSFromRekap('${escapeJs(rec.kecamatan)}', '${escapeJs(rec.desa)}', '${escapeJs(rec.tps)}')">Ketuk kartu untuk pilih TPS</span>
       </div>
@@ -2700,6 +2977,12 @@ function selectTPSAndLembagaFromRekap(kec, desa, tps, kodeLembaga) {
   const selectJenis = document.getElementById('selectJenisFile');
   if (selectJenis && !selectJenis.value) {
     selectJenis.value = 'Model C-Plano';
+  }
+  const kategori = getKategoriForLembaga(kodeLembaga);
+  const selectKategori = document.getElementById('selectKategoriPemilihan');
+  if (selectKategori) {
+    selectKategori.value = kategori;
+    applyKategoriPemilihanChange(kategori, false);
   }
   const selectLembaga = document.getElementById('selectLembaga');
   if (selectLembaga && kodeLembaga) {
@@ -2908,11 +3191,13 @@ function getLocalFallbackMonitoring(filterKec, filterDesa) {
 let currentPickerSelectId = null;
 
 const PICKER_FIELD_MAP = [
+  { selectId: 'selectKategoriPemilihan', labelId: 'labelKategoriPemilihan', triggerId: 'triggerKategoriPemilihan' },
   { selectId: 'selectJenisFile', labelId: 'labelJenisFile', triggerId: 'triggerJenisFile' },
   { selectId: 'selectLembaga', labelId: 'labelLembaga', triggerId: 'triggerLembaga' },
   { selectId: 'selectKecamatan', labelId: 'labelKecamatan', triggerId: 'triggerKecamatan' },
   { selectId: 'selectDesa', labelId: 'labelDesa', triggerId: 'triggerDesa' },
   { selectId: 'selectTPS', labelId: 'labelTPS', triggerId: 'triggerTPS' },
+  { selectId: 'filterRekapKategori', labelId: 'labelFilterRekapKategori', triggerId: 'triggerFilterRekapKategori' },
   { selectId: 'filterRekapKecamatan', labelId: 'labelFilterRekapKecamatan', triggerId: 'triggerFilterRekapKecamatan' },
   { selectId: 'filterRekapDesa', labelId: 'labelFilterRekapDesa', triggerId: 'triggerFilterRekapDesa' },
   { selectId: 'selectOpJabatan', labelId: 'labelOpJabatan', triggerId: 'triggerOpJabatan' }
@@ -2944,7 +3229,9 @@ function syncAllPickers() {
 function triggerPicker(selectId, title, icon = '📍', hasSearch = true) {
   const sel = document.getElementById(selectId);
   if (!sel || sel.disabled) {
-    if (selectId === 'selectDesa') {
+    if (selectId === 'selectLembaga') {
+      showAppToast('Harap pilih Jenis Pemilihan (Pemilu/Pilkada) terlebih dahulu.', 'warning');
+    } else if (selectId === 'selectDesa') {
       showAppToast('Harap pilih Kecamatan terlebih dahulu.', 'warning');
     } else if (selectId === 'selectTPS') {
       showAppToast('Harap pilih Desa terlebih dahulu.', 'warning');

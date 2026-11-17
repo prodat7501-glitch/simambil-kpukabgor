@@ -87,6 +87,22 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label">Jenis Pemilihan (Kategori)</label>
+          <div class="custom-picker-field" id="triggerKategoriPemilihan" onclick="triggerPicker('selectKategoriPemilihan', 'Jenis Pemilihan', '🗳️', false)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">🗳️</span>
+              <span class="picker-field-text" id="labelKategoriPemilihan">-- Pilih Jenis Pemilihan --</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="selectKategoriPemilihan" class="visually-hidden-select" onchange="onKategoriPemilihanChanged(); syncAllPickers();">
+            <option value="">-- Pilih Jenis Pemilihan --</option>
+            <option value="PEMILU">Pemilu (Presiden & Legislatif)</option>
+            <option value="PILKADA">Pilkada (Gubernur & Bupati)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Jenis Berkas Dokumen</label>
           <div class="custom-picker-field" id="triggerJenisFile" onclick="triggerPicker('selectJenisFile', 'Jenis Berkas Dokumen', '📄', false)" role="button" tabindex="0">
             <div class="picker-field-left">
@@ -103,23 +119,16 @@
         </div>
 
         <div class="form-group">
-          <label class="form-label">Jenis Pemilihan / Lembaga</label>
-          <div class="custom-picker-field" id="triggerLembaga" onclick="triggerPicker('selectLembaga', 'Jenis Pemilihan / Lembaga', '🏛️', false)" role="button" tabindex="0">
+          <label class="form-label">Jenis Lembaga</label>
+          <div class="custom-picker-field disabled" id="triggerLembaga" onclick="triggerPicker('selectLembaga', 'Jenis Lembaga', '🏛️', false)" role="button" tabindex="0">
             <div class="picker-field-left">
               <span class="picker-field-icon">🏛️</span>
-              <span class="picker-field-text" id="labelLembaga">-- Pilih Jenis Pemilihan --</span>
+              <span class="picker-field-text" id="labelLembaga">-- Pilih Jenis Pemilihan Terlebih Dahulu --</span>
             </div>
             <span class="picker-field-chevron">▾</span>
           </div>
-          <select id="selectLembaga" class="visually-hidden-select" onchange="onLembagaSelectionChanged();">
-            <option value="">-- Pilih Jenis Pemilihan --</option>
-            <option value="PPWP">1. PPWP (Presiden & Wapres)</option>
-            <option value="DPD-RI">2. DPD RI</option>
-            <option value="DPR-RI">3. DPR RI</option>
-            <option value="DPRD-PROV">4. DPRD Provinsi</option>
-            <option value="DPRD-KAB">5. DPRD Kabupaten/Kota</option>
-            <option value="PILGUB">6. Gubernur & Wagub (PILGUB)</option>
-            <option value="PILBUP">7. Bupati & Wabup (PILBUP)</option>
+          <select id="selectLembaga" class="visually-hidden-select" onchange="onLembagaSelectionChanged();" disabled>
+            <option value="">-- Pilih Jenis Pemilihan Terlebih Dahulu --</option>
           </select>
           <div id="targetPageInfo" style="margin-top: 6px; font-size: 11px; display: flex; align-items: center; justify-content: space-between; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px;">
             <div style="display: flex; align-items: center; gap: 5px;">
@@ -238,6 +247,22 @@
         </div>
 
         <div class="form-group">
+          <label class="form-label">Jenis Pemilihan (Kategori)</label>
+          <div class="custom-picker-field" id="triggerFilterRekapKategori" onclick="triggerPicker('filterRekapKategori', 'Kategori Pemilihan', '🗳️', false)" role="button" tabindex="0">
+            <div class="picker-field-left">
+              <span class="picker-field-icon">🗳️</span>
+              <span class="picker-field-text" id="labelFilterRekapKategori">🏛️ Pemilu (5 Lembaga)</span>
+            </div>
+            <span class="picker-field-chevron">▾</span>
+          </div>
+          <select id="filterRekapKategori" class="visually-hidden-select" onchange="onRekapKategoriFilterChanged(); syncAllPickers();">
+            <option value="PEMILU" selected>🏛️ Pemilu (5 Lembaga)</option>
+            <option value="PILKADA">🗳️ Pilkada (2 Lembaga)</option>
+            <option value="SEMUA">📊 Semua / Gabungan (7 Lembaga)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Kecamatan</label>
           <div class="custom-picker-field" id="triggerFilterRekapKecamatan" onclick="triggerPicker('filterRekapKecamatan', 'Filter Kecamatan', '📍', true)" role="button" tabindex="0">
             <div class="picker-field-left">
@@ -276,6 +301,19 @@
         </div>
       </div>
 
+      <!-- Segmented Kategori Tabs: Pemilu vs Pilkada vs Semua -->
+      <div class="category-toggle-bar">
+        <button type="button" id="btnCatPemilu" class="category-pill-btn active" onclick="setRekapCategory('PEMILU')">
+          🏛️ Pemilu (5 Dokumen)
+        </button>
+        <button type="button" id="btnCatPilkada" class="category-pill-btn" onclick="setRekapCategory('PILKADA')">
+          🗳️ Pilkada (2 Dokumen)
+        </button>
+        <button type="button" id="btnCatSemua" class="category-pill-btn" onclick="setRekapCategory('SEMUA')">
+          📊 Semua (7)
+        </button>
+      </div>
+
       <!-- Summary Cards KPI -->
       <div class="summary-cards-grid">
         <div class="stat-card total" onclick="filterRekapStatus('ALL')">
@@ -284,7 +322,7 @@
         </div>
         <div class="stat-card lengkap" onclick="filterRekapStatus('LENGKAP')">
           <span id="statLengkap" class="stat-number">0</span>
-          <span class="stat-label">🟢 Lengkap (7/7)</span>
+          <span class="stat-label" id="statLengkapLabel">🟢 Lengkap (5/5)</span>
         </div>
         <div class="stat-card belum" onclick="filterRekapStatus('BELUM LENGKAP')">
           <span id="statBelumLengkap" class="stat-number">0</span>

@@ -34,22 +34,29 @@
   - Seluruh komunikasi API dilindungi dengan token otentikasi resmi.
   - Seluruh data teks yang dicatat ke Google Sheets disanitasi dari karakter awalan formula (`=`, `+`, `-`, `@`) guna mencegah *Spreadsheet Formula Injection*.
 
-### 4. Aturan Rekapitulasi, Target Halaman & Deteksi Wilayah Pending
-1. **Daftar Target Kelengkapan Halaman per Jenis Pemilihan / Lembaga:**
-   Untuk dinyatakan lengkap pada setiap jenis pemilihan, berkas dokumen yang diunggah wajib memenuhi target minimum jumlah halaman berikut:
-   - **PPWP (Presiden dan Wakil Presiden):** 3 Halaman
-   - **DPD RI:** 3 Halaman
-   - **DPR RI:** 20 Halaman
-   - **DPRD PROVINSI:** 20 Halaman
-   - **DPRD KABUPATEN/KOTA:** 20 Halaman
-   - **Gubernur dan Wakil Gubernur (PILGUB):** 3 Halaman
-   - **Bupati dan Wakil Bupati (PILBUP):** 3 Halaman
+### 4. Aturan Rekapitulasi, Target Halaman, Pemisahan Kategori & Deteksi Wilayah Pending
+1. **Daftar Target Kelengkapan Halaman & Pemisahan Kategori Pemilihan:**
+   Aplikasi memisahkan alur dokumentasi dan evaluasi kelengkapan antara **Pemilu** dan **Pilkada**:
+   - **Kategori PEMILU (5 Jenis Pemilihan / Lembaga Target):**
+     1. **PPWP (Presiden dan Wakil Presiden):** 3 Halaman
+     2. **DPR RI:** 20 Halaman
+     3. **DPD RI:** 3 Halaman
+     4. **DPRD PROVINSI:** 20 Halaman
+     5. **DPRD KABUPATEN/KOTA:** 20 Halaman
+     *Kriteria Lengkap Kategori Pemilu:* **5 Dokumen Lengkap (5/5)**.
+   - **Kategori PILKADA (2 Jenis Pemilihan / Lembaga Target):**
+     1. **Gubernur dan Wakil Gubernur (PILGUB):** 3 Halaman
+     2. **Bupati dan Wakil Bupati (PILBUP):** 3 Halaman
+     *Kriteria Lengkap Kategori Pilkada:* **2 Dokumen Lengkap (2/2)**.
+   - **Kategori SEMUA / GABUNGAN (7 Lembaga Target):**
+     *Kriteria Lengkap Gabungan:* **7 Dokumen Lengkap (7/7)**.
 
 2. **Aturan Evaluasi Status TPS & Deteksi Halaman Hilang:**
-   - **LENGKAP (🟢):** Ditetapkan jika dan hanya jika **seluruh 7 jenis pemilihan** telah diunggah dan **masing-masing telah memenuhi target halaman minimumnya**.
-   - **BELUM LENGKAP (🟡):** Ditetapkan jika sudah ada minimal 1 berkas diunggah pada TPS tersebut, namun **belum semua 7 pemilihan memenuhi target halaman masing-masing** (misal ada berkas yang halamannya masih kurang atau belum diunggah).
-   - **KOSONG / PENDING (🔴):** Ditetapkan jika belum ada satupun dokumen yang diunggah untuk TPS tersebut (`totalUpload = 0`).
+   - **LENGKAP (🟢):** Ditetapkan jika seluruh target lembaga pada kategori aktif (5 lembaga untuk Pemilu, 2 lembaga untuk Pilkada, atau 7 lembaga untuk Semua) telah diunggah dan masing-masing telah memenuhi target halaman minimumnya.
+   - **BELUM LENGKAP (🟡):** Ditetapkan jika sudah ada minimal 1 berkas diunggah pada kategori aktif, namun belum seluruh target lembaga terpenuhi atau ada berkas yang halamannya masih kurang.
+   - **KOSONG / PENDING (🔴):** Ditetapkan jika belum ada satupun dokumen pada kategori aktif yang diunggah untuk TPS tersebut.
    - **Deteksi Halaman Hilang/Kurang:** Sistem menghitung selisih halaman secara presisi (`kurang = target - actual`). Jika berkas terunggah memiliki jumlah halaman di bawah target (misalnya DPR RI hanya 17 dari 20 halaman, artinya terdapat 3 halaman hilang/kurang), sistem menampilkan peringatan khusus (alert banner) dan indikator visual pada kartu TPS di menu Rekap & Monitoring agar segera ditindaklanjuti oleh koordinator/operator.
+   - **Segmented Category Filter:** Tersedia tombol segmented (`Pemilu`, `Pilkada`, `Semua`) pada menu Rekap & Monitoring yang mengevaluasi status, kartu KPI, dan progress wilayah secara instan (0ms) tanpa reload.
 
 3. **Deteksi Instan Wilayah Belum Diunggah (Overview Wilayah Tanpa Dropdown):**
    - Menu Rekap & Monitoring menyediakan mode ringkasan per wilayah (Kecamatan & Desa) yang langsung menampilkan titik-titik wilayah yang belum mengunggah berkas secara instan tanpa mengharuskan pengguna memilih filter dropdown wilayah satu per satu.

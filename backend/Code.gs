@@ -83,7 +83,8 @@ function doGet(e) {
       }
       const filterKec = e.parameter.kecamatan || '';
       const filterDesa = e.parameter.desa || '';
-      const data = getMonitoringSummary(filterKec, filterDesa);
+      const filterKategori = e.parameter.kategori || '';
+      const data = getMonitoringSummary(filterKec, filterDesa, filterKategori);
       return createJsonResponse(data);
     }
 
@@ -229,46 +230,78 @@ function getInitialMasterData() {
     }
 
     // 2. Ambil data Wilayah berjenjang (Kecamatan -> Desa -> TPS)
+    // SOT: Mendukung pemisahan TPS Pemilu vs Pilkada jika kolom Kategori (Column E) diisi di Spreadsheet
     const dataWilayah = sheetWilayah.getDataRange().getValues();
     const wilayahTree = {};
+    const wilayahPilkadaTree = {};
+    let hasPilkadaWilayah = false;
 
     for (let i = 1; i < dataWilayah.length; i++) {
       const kec = String(dataWilayah[i][1] || '').trim().toUpperCase();
       const desa = String(dataWilayah[i][2] || '').trim().toUpperCase();
       const tps = formatTPS(String(dataWilayah[i][3] || '').trim());
+      const kategoriTps = String(dataWilayah[i][4] || '').trim().toUpperCase();
 
       if (!kec || !desa || !tps) continue;
 
-      if (!wilayahTree[kec]) {
-        wilayahTree[kec] = {};
+      // Masukkan ke wilayah umum / Pemilu jika bukan khusus Pilkada
+      if (kategoriTps !== 'PILKADA') {
+        if (!wilayahTree[kec]) wilayahTree[kec] = {};
+        if (!wilayahTree[kec][desa]) wilayahTree[kec][desa] = [];
+        if (!wilayahTree[kec][desa].includes(tps)) wilayahTree[kec][desa].push(tps);
       }
-      if (!wilayahTree[kec][desa]) {
-        wilayahTree[kec][desa] = [];
-      }
-      if (!wilayahTree[kec][desa].includes(tps)) {
-        wilayahTree[kec][desa].push(tps);
+
+      // Masukkan ke wilayah Pilkada jika khusus Pilkada atau tanpa pembatas kategori
+      if (kategoriTps === 'PILKADA') {
+        hasPilkadaWilayah = true;
+        if (!wilayahPilkadaTree[kec]) wilayahPilkadaTree[kec] = {};
+        if (!wilayahPilkadaTree[kec][desa]) wilayahPilkadaTree[kec][desa] = [];
+        if (!wilayahPilkadaTree[kec][desa].includes(tps)) wilayahPilkadaTree[kec][desa].push(tps);
       }
     }
 
     // Susun format response sesuai SOT 05-API-SPEC.md
-    const wilayahList = Object.keys(wilayahTree).sort().map(kec => {
-      const desaList = Object.keys(wilayahTree[kec]).sort().map(desa => {
+    const formatWilayahTree = (tree) => {
+      return Object.keys(tree).sort().map(kec => {
+        const desaList = Object.keys(tree[kec]).sort().map(desa => {
+          return {
+            desa: desa,
+            tpsList: tree[kec][desa].sort()
+          };
+        });
         return {
-          desa: desa,
-          tpsList: wilayahTree[kec][desa].sort()
+          kecamatan: kec,
+          desaList: desaList
         };
       });
-      return {
-        kecamatan: kec,
-        desaList: desaList
-      };
-    });
+    };
+
+    const wilayahList = formatWilayahTree(wilayahTree);
+    const wilayahPilkadaList = hasPilkadaWilayah ? formatWilayahTree(wilayahPilkadaTree) : [];
 
     const result = {
       status: 'success',
       jenisDokumen: Array.from(jenisDokumenSet),
+      kategoriPemilihan: [
+        { kode: 'PEMILU', nama: 'Pemilu (Presiden & Legislatif)', totalLembaga: 5 },
+        { kode: 'PILKADA', nama: 'Pilkada (Gubernur & Bupati)', totalLembaga: 2 }
+      ],
       lembaga: Array.from(lembagaMap.values()),
-      wilayah: wilayahList
+      lembagaByKategori: {
+        'PEMILU': [
+          { nama: 'Presiden dan Wakil Presiden', kode: 'PPWP', targetHal: 3 },
+          { nama: 'DPR RI', kode: 'DPR-RI', targetHal: 20 },
+          { nama: 'DPD RI', kode: 'DPD-RI', targetHal: 3 },
+          { nama: 'DPRD Provinsi', kode: 'DPRD-PROV', targetHal: 20 },
+          { nama: 'DPRD Kabupaten / Kota', kode: 'DPRD-KAB', targetHal: 20 }
+        ],
+        'PILKADA': [
+          { nama: 'Gubernur dan Wakil Gubernur', kode: 'PILGUB', targetHal: 3 },
+          { nama: 'Bupati dan Wakil Bupati', kode: 'PILBUP', targetHal: 3 }
+        ]
+      },
+      wilayah: wilayahList,
+      wilayahPilkada: wilayahPilkadaList
     };
 
     // Simpan ke CacheService Apps Script selama 6 jam (21600 detik)
@@ -435,14 +468,16 @@ function uploadCompiledDocument(payload) {
  * SOT: 05-API-SPEC.md (Section 3) & 06-BUSINESS-RULES.md (Section 4)
  * ==============================================================================
  */
-function getMonitoringSummary(filterKecamatan, filterDesa) {
+function getMonitoringSummary(filterKecamatan, filterDesa, filterKategori) {
   try {
     const isGlobal = !filterKecamatan && !filterDesa;
+    const catUpper = String(filterKategori || '').trim().toUpperCase();
     const cache = CacheService.getScriptCache();
 
-    // 0. Cek CacheService Apps Script untuk query ringkasan seluruh kabupaten
+    // 0. Cek CacheService Apps Script
+    const cacheKey = 'CACHE_MON_V5_' + (catUpper || 'ALL') + '_' + (isGlobal ? 'GLOBAL' : (filterKecamatan + '_' + filterDesa));
     if (isGlobal) {
-      const cached = cache.get('CACHE_MONITORING_SUMMARY_V3');
+      const cached = cache.get(cacheKey);
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -464,10 +499,15 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       return getFallbackMonitoringSummary(filterKecamatan, filterDesa);
     }
 
-    // 1. Ambil daftar target 7 Lembaga beserta target jumlah halamannya
-    // SOT 06-BUSINESS-RULES.md:
-    // PPWP: 3 hal, DPD-RI: 3 hal, DPR-RI: 20 hal, DPRD-PROV: 20 hal, DPRD-KAB: 20 hal, PILGUB: 3 hal, PILBUP: 3 hal
-    const targetLembaga = ['PPWP', 'DPR-RI', 'DPD-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+    // 1. Ambil target lembaga sesuai kategori pemilihan
+    // SOT: Pemilu (5 Lembaga), Pilkada (2 Lembaga), Semua (7 Lembaga)
+    let targetLembaga = ['PPWP', 'DPR-RI', 'DPD-RI', 'DPRD-PROV', 'DPRD-KAB', 'PILGUB', 'PILBUP'];
+    if (catUpper === 'PEMILU') {
+      targetLembaga = ['PPWP', 'DPR-RI', 'DPD-RI', 'DPRD-PROV', 'DPRD-KAB'];
+    } else if (catUpper === 'PILKADA') {
+      targetLembaga = ['PILGUB', 'PILBUP'];
+    }
+
     const TARGET_HALAMAN = {
       'PPWP': 3,
       'DPD-RI': 3,
@@ -758,7 +798,7 @@ function getMonitoringSummary(filterKecamatan, filterDesa) {
       try {
         const jsonStr = JSON.stringify(result);
         if (jsonStr.length < 100000) {
-          cache.put('CACHE_MONITORING_SUMMARY_V3', jsonStr, 120);
+          cache.put(cacheKey, jsonStr, 120);
         }
       } catch (errCache) {
         Logger.log('Monitoring cache put failed: ' + errCache.message);
@@ -962,7 +1002,7 @@ function setupDatabase() {
   if (!sheetWilayah) {
     sheetWilayah = ss.insertSheet(SHEETS.WILAYAH);
   }
-  ensureSheetHeaders(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS']);
+  ensureSheetHeaders(sheetWilayah, ['ID_TPS', 'NAMA_KEC', 'NAMA_DESA', 'NO_TPS', 'KATEGORI']);
 
   // 3. Setup Log_Dokumen (Pastikan kolom operator K, L, M terpasang tanpa menghapus riwayat log)
   let sheetLog = ss.getSheetByName(SHEETS.LOG);
@@ -1037,6 +1077,10 @@ function getFallbackMasterData() {
   return {
     status: 'success',
     jenisDokumen: ['Model C-Plano', 'Model D-Plano'],
+    kategoriPemilihan: [
+      { kode: 'PEMILU', nama: 'Pemilu (Presiden & Legislatif)', totalLembaga: 5 },
+      { kode: 'PILKADA', nama: 'Pilkada (Gubernur & Bupati)', totalLembaga: 2 }
+    ],
     lembaga: [
       { nama: 'Presiden dan Wakil Presiden', kode: 'PPWP' },
       { nama: 'DPR RI', kode: 'DPR-RI' },
@@ -1046,7 +1090,21 @@ function getFallbackMasterData() {
       { nama: 'Gubernur dan Wakil Gubernur', kode: 'PILGUB' },
       { nama: 'Bupati dan Wakil Bupati', kode: 'PILBUP' }
     ],
-    wilayah: []
+    lembagaByKategori: {
+      'PEMILU': [
+        { nama: 'Presiden dan Wakil Presiden', kode: 'PPWP', targetHal: 3 },
+        { nama: 'DPR RI', kode: 'DPR-RI', targetHal: 20 },
+        { nama: 'DPD RI', kode: 'DPD-RI', targetHal: 3 },
+        { nama: 'DPRD Provinsi', kode: 'DPRD-PROV', targetHal: 20 },
+        { nama: 'DPRD Kabupaten / Kota', kode: 'DPRD-KAB', targetHal: 20 }
+      ],
+      'PILKADA': [
+        { nama: 'Gubernur dan Wakil Gubernur', kode: 'PILGUB', targetHal: 3 },
+        { nama: 'Bupati dan Wakil Bupati', kode: 'PILBUP', targetHal: 3 }
+      ]
+    },
+    wilayah: [],
+    wilayahPilkada: []
   };
 }
 

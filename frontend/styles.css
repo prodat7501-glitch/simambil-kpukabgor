@@ -1368,6 +1368,38 @@ body {
 }
 
 /* ==========================================================================
+   SEGMENTED KATEGORI TABS: PEMILU (5 LEMBAGA) VS PILKADA (2 LEMBAGA)
+   ========================================================================== */
+.category-toggle-bar {
+  display: flex;
+  background: #E2E8F0;
+  padding: 3px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.category-pill-btn {
+  flex: 1;
+  border: none;
+  padding: 8px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  color: #64748B;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.category-pill-btn.active {
+  background: #FFFFFF;
+  color: var(--kpu-maroon);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* ==========================================================================
    WILAYAH PENDING & VIEW MODE TABS (SOT 06-BUSINESS-RULES.md)
    ========================================================================== */
 .view-mode-tabs {
