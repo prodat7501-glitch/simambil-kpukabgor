@@ -2995,23 +2995,28 @@ function dewarpHorizontalLinesBuffer(warpedRgba, width, height) {
 }
 
 /**
- * CamScanner HD Document Clarifier
- * - 5x5 Morphological Background Illumination Flattening (Meratakan bayangan lipatan kertas)
- * - 3x3 Unsharp Mask (USM) High-Frequency Sharpening (Menajamkan teks cetak & angka tulisan tangan)
- * - Ink-Preserving Tone Mapping (Kertas putih bersih, tinta hitam & pulpen biru tajam pekat)
+ * CamScanner Magic Color Document Clarifier
+ * - Morphological Background Illumination Flattening (Meratakan bayangan lipatan & pencahayaan lampu ruangan)
+ * - 3x3 High-Frequency Unsharp Mask (Menajamkan huruf cetak, garis tabel, angka & tanda tangan)
+ * - True-Color Magic Enhancer:
+ *   1. Kertas Putih Bersih (Background paper di-flatten menjadi putih terang tanpa noda/bayangan)
+ *   2. Tinta Hitam Pekat (Teks cetak, barcode, garis tabel menjadi hitam tajam presisi)
+ *   3. Tinta Pulpen Biru Asli (Tanda tangan saksi, tanggal, nama, angka tally dipertahankan & ditingkatkan menjadi warna biru royal/navy autentik)
+ *   4. Cap/Stempel Merah/Ungu (Mempertahankan saturasi warna stempel resmi KPU/KPPS)
  */
 function enhanceDocumentHDClarifierBuffer(warped, targetW, targetH) {
   const dst = new Uint8ClampedArray(warped.length);
-  const STEP = 5;
+  const STEP = 12;
   const GX = Math.ceil(targetW / STEP);
   const GY = Math.ceil(targetH / STEP);
   const maxGrid = new Float32Array(GX * GY);
 
+  // 1. Ekstraksi Luminans Maksimum per Blok Grid
   for (let gy = 0; gy < GY; gy++) {
     const y0 = gy * STEP, y1 = Math.min(targetH, y0 + STEP);
     for (let gx = 0; gx < GX; gx++) {
       const x0 = gx * STEP, x1 = Math.min(targetW, x0 + STEP);
-      let maxL = 80;
+      let maxL = 100;
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
           const i = (y * targetW + x) * 4;
@@ -3023,14 +3028,15 @@ function enhanceDocumentHDClarifierBuffer(warped, targetW, targetH) {
     }
   }
 
+  // 2. Dilatasi Morfologis 5x5 Grid (~60px radius untuk mendeteksi kertas putih di sekitar teks tebal)
   const dilatedGrid = new Float32Array(GX * GY);
   for (let gy = 0; gy < GY; gy++) {
     for (let gx = 0; gx < GX; gx++) {
       let maxV = maxGrid[gy * GX + gx];
-      for (let dy = -1; dy <= 1; dy++) {
+      for (let dy = -2; dy <= 2; dy++) {
         const ny = gy + dy;
         if (ny < 0 || ny >= GY) continue;
-        for (let dx = -1; dx <= 1; dx++) {
+        for (let dx = -2; dx <= 2; dx++) {
           const nx = gx + dx;
           if (nx < 0 || nx >= GX) continue;
           const v = maxGrid[ny * GX + nx];
@@ -3041,23 +3047,25 @@ function enhanceDocumentHDClarifierBuffer(warped, targetW, targetH) {
     }
   }
 
+  // 3. Penghalusan Iluminasi Kertas Latar (Moving Average 5x5)
   const smoothBg = new Float32Array(GX * GY);
   for (let gy = 0; gy < GY; gy++) {
     for (let gx = 0; gx < GX; gx++) {
       let s = 0, c = 0;
-      for (let dy = -1; dy <= 1; dy++) {
+      for (let dy = -2; dy <= 2; dy++) {
         const ny = gy + dy;
         if (ny < 0 || ny >= GY) continue;
-        for (let dx = -1; dx <= 1; dx++) {
+        for (let dx = -2; dx <= 2; dx++) {
           const nx = gx + dx;
           if (nx < 0 || nx >= GX) continue;
           s += dilatedGrid[ny * GX + nx]; c++;
         }
       }
-      smoothBg[gy * GX + gx] = Math.max(90, s / c);
+      smoothBg[gy * GX + gx] = Math.max(120, s / c);
     }
   }
 
+  // 4. Transformasi Magic Color per Piksel dengan Penajaman & Preservasi Tinta Biru/Warna
   for (let y = 0; y < targetH; y++) {
     const fy = Math.max(0, Math.min(GY - 1.001, (y - STEP * 0.5) / STEP));
     const gy0 = fy | 0, gy1 = Math.min(GY - 1, gy0 + 1);
@@ -3089,24 +3097,67 @@ function enhanceDocumentHDClarifierBuffer(warped, targetW, targetH) {
         lap = (lum * 4) - (lumUp + lumDn + lumLf + lumRt);
       }
 
-      const sharpLum = lum + lap * 0.85;
-      const norm = Math.max(0, Math.min(1.02, sharpLum / bg));
+      const sharpLum = lum + lap * 0.60;
+      const norm = Math.max(0, Math.min(1.05, sharpLum / bg));
 
-      let targetLum;
-      if (norm >= 0.96) {
-        targetLum = 248 + ((norm - 0.96) / 0.06) * 7;
-      } else {
-        const t = norm / 0.96;
-        targetLum = Math.pow(t, 2.35) * 248;
+      // Jika area kertas putih bersih (norm >= 0.94)
+      if (norm >= 0.94) {
+        dst[i]     = 255;
+        dst[i + 1] = 255;
+        dst[i + 2] = 255;
+        dst[i + 3] = 255;
+        continue;
       }
 
-      const isBlueInk = (b > r + 14 && norm < 0.90);
-      const whiteWeight = isBlueInk ? 0.15 : (norm >= 0.78 ? Math.min(0.92, (norm - 0.78) / 0.16) : 0.35);
-      const scale = targetLum / Math.max(1, lum);
+      // Deteksi Tinta Biru (Pulpen KPPS / Saksi)
+      // Pada lampu ruangan hangat/kuning: kertas memiliki r > b, sehingga pulpen biru dicirikan b >= r atau b - r > 0
+      const diffBR = b - r;
+      const diffBG = b - g;
+      const blueScore = b - (r + g) * 0.5;
+      const isBlueInk = (diffBR >= 1 || blueScore >= 1.0) && (diffBG >= -12) && (norm < 0.92);
 
-      dst[i]     = Math.min(255, Math.max(0, Math.round(r * scale * (1 - whiteWeight) + targetLum * whiteWeight)));
-      dst[i + 1] = Math.min(255, Math.max(0, Math.round(g * scale * (1 - whiteWeight) + targetLum * whiteWeight)));
-      dst[i + 2] = Math.min(255, Math.max(0, Math.round(b * scale * (1 - whiteWeight) + targetLum * whiteWeight)));
+      let blueWeight = 0;
+      if (isBlueInk) {
+        blueWeight = Math.min(1.0, Math.max(0.0, Math.max(diffBR, blueScore) / 7.0));
+      }
+
+      // Deteksi Tinta Merah/Stempel Cap
+      const redScore = r - Math.max(g, b);
+      let redWeight = 0;
+      if (redScore >= 14 && norm < 0.92) {
+        redWeight = Math.min(1.0, Math.max(0.0, (redScore - 14) / 14.0));
+      }
+
+      // Bobot transisi ke kertas putih di pinggir goresan (0.86 - 0.94)
+      const wPaper = Math.max(0.0, Math.min(1.0, (norm - 0.86) / 0.08));
+
+      // 1. Teks Netral / Garis Cetak Hitam (S-curve kontras tinggi)
+      const t = Math.min(1.0, Math.max(0.0, norm / 0.90));
+      const targetLum = Math.pow(t, 2.05) * 242;
+      const scale = targetLum / Math.max(1, lum);
+      const rNeut = Math.min(255, r * scale) * (1 - wPaper) + 255 * wPaper;
+      const gNeut = Math.min(255, g * scale) * (1 - wPaper) + 255 * wPaper;
+      const bNeut = Math.min(255, b * scale) * (1 - wPaper) + 255 * wPaper;
+
+      // 2. Tinta Pulpen Biru Royal / Navy Autentik (#182bab / #1e40af)
+      const inkDepth = Math.min(1.0, Math.max(0.0, (0.92 - norm) / 0.40));
+      const rBlue = (18 + (1 - inkDepth) * 55) * (1 - wPaper) + 255 * wPaper;
+      const gBlue = (45 + (1 - inkDepth) * 65) * (1 - wPaper) + 255 * wPaper;
+      const bBlue = (170 + (1 - inkDepth) * 65) * (1 - wPaper) + 255 * wPaper;
+
+      // 3. Stempel Cap Merah Autentik
+      const rRed = (215 + (1 - inkDepth) * 35) * (1 - wPaper) + 255 * wPaper;
+      const gRed = (25 + (1 - inkDepth) * 45) * (1 - wPaper) + 255 * wPaper;
+      const bRed = (25 + (1 - inkDepth) * 45) * (1 - wPaper) + 255 * wPaper;
+
+      const colWeight = Math.min(1.0, blueWeight + redWeight);
+      const finalR = rNeut * (1 - colWeight) + rBlue * blueWeight + rRed * redWeight;
+      const finalG = gNeut * (1 - colWeight) + gBlue * blueWeight + gRed * redWeight;
+      const finalB = bNeut * (1 - colWeight) + bBlue * blueWeight + bRed * redWeight;
+
+      dst[i]     = Math.min(255, Math.max(0, (finalR + 0.5) | 0));
+      dst[i + 1] = Math.min(255, Math.max(0, (finalG + 0.5) | 0));
+      dst[i + 2] = Math.min(255, Math.max(0, (finalB + 0.5) | 0));
       dst[i + 3] = 255;
     }
   }
