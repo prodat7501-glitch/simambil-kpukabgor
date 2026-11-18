@@ -1420,38 +1420,237 @@ function openCameraModal(index) {
 function closeCameraModal() {
   stopCameraStream();
   const modal = document.getElementById('cameraModal');
-  modal.classList.remove('active');
+  if (modal) modal.classList.remove('active');
 }
 
 let isFlashOn = false;
 let isScreenFlashActive = false;
+let availableVideoDevices = [];
+let rearCameraDevices = [];
+let currentRearCameraIndex = 0;
+let cameraTrack = null;
+let currentZoomLevel = 1.0;
+let focusListenerAttached = false;
 
-function startCameraStream() {
+async function startCameraStream() {
   stopCameraStream();
   const video = document.getElementById('cameraVideo');
+  if (!video) return;
 
+  // 1. Dapatkan daftar device kamera fisik
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+      const allDevices = await navigator.mediaDevices.enumerateDevices();
+      availableVideoDevices = allDevices.filter(d => d.kind === 'videoinput');
+      
+      rearCameraDevices = availableVideoDevices.filter(d => {
+        const lbl = (d.label || '').toLowerCase();
+        return lbl.includes('back') || lbl.includes('rear') || lbl.includes('belakang') || lbl.includes('environment');
+      });
+
+      // Urutkan agar kamera utama (Main 1x / Standard) berada di urutan teratas, hindari ultra-wide (0.5x / wide-angle / macro)
+      rearCameraDevices.sort((a, b) => {
+        const aLbl = (a.label || '').toLowerCase();
+        const bLbl = (b.label || '').toLowerCase();
+        const aIsWide = aLbl.includes('wide') || aLbl.includes('0.5') || aLbl.includes('0.6') || aLbl.includes('ultra');
+        const bIsWide = bLbl.includes('wide') || bLbl.includes('0.5') || bLbl.includes('0.6') || bLbl.includes('ultra');
+        if (aIsWide && !bIsWide) return 1;
+        if (!aIsWide && bIsWide) return -1;
+        return 0;
+      });
+    }
+  } catch (eEnum) {
+    console.warn('enumerateDevices notice:', eEnum);
+  }
+
+  const targetDeviceId = (currentFacingMode === 'environment' && rearCameraDevices.length > 0)
+    ? rearCameraDevices[currentRearCameraIndex % rearCameraDevices.length].deviceId
+    : undefined;
+
+  // Prioritaskan resolusi sensor tinggi (Full HD / 4K) dan autofocus kontinu
   const constraints = {
     audio: false,
     video: {
-      facingMode: { ideal: currentFacingMode },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
+      deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
+      facingMode: targetDeviceId ? undefined : { ideal: currentFacingMode },
+      width: { ideal: 3840, min: 1920 },
+      height: { ideal: 2160, min: 1080 },
+      focusMode: { ideal: 'continuous' }
     }
   };
 
-  navigator.mediaDevices?.getUserMedia(constraints)
-    .then(stream => {
-      cameraStream = stream;
-      video.srcObject = stream;
-      video.play();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    cameraStream = stream;
+    cameraTrack = stream.getVideoTracks()[0];
+    video.srcObject = stream;
+    await video.play();
+
+    isFlashOn = false;
+    isScreenFlashActive = false;
+    updateFlashUI(false);
+
+    setupCameraCapabilities(cameraTrack);
+    attachVideoFocusListener(video);
+  } catch (err) {
+    console.warn('getUserMedia high-res gagal, mencoba constraint standar:', err);
+    try {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: { ideal: currentFacingMode },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        }
+      });
+      cameraStream = fallbackStream;
+      cameraTrack = fallbackStream.getVideoTracks()[0];
+      video.srcObject = fallbackStream;
+      await video.play();
+
       isFlashOn = false;
       isScreenFlashActive = false;
       updateFlashUI(false);
-    })
-    .catch(err => {
-      console.warn('getUserMedia gagal atau tidak didukung:', err);
-      triggerFallbackFile();
+
+      setupCameraCapabilities(cameraTrack);
+      attachVideoFocusListener(video);
+    } catch (errFallback) {
+      console.warn('getUserMedia fallback gagal, beralih ke kamera native:', errFallback);
+      triggerNativeCamera();
+    }
+  }
+}
+
+function setupCameraCapabilities(track) {
+  if (!track) return;
+  const capabilities = typeof track.getCapabilities === 'function' ? track.getCapabilities() : {};
+  const zoomContainer = document.getElementById('cameraZoomControls');
+  const qualityPill = document.getElementById('cameraQualityPill');
+
+  // 1. Tangani Kontrol Zoom & Cegah Kamera Terkunci di 0.5x Ultra-Wide
+  if (capabilities.zoom) {
+    const minZoom = capabilities.zoom.min || 1.0;
+    const maxZoom = capabilities.zoom.max || 1.0;
+
+    // Jika kamera secara default berada di mode ultra-wide (< 1.0), otomatis paksa zoom ke 1.0x (Kamera Utama Standard)
+    if (minZoom < 1.0) {
+      setCameraZoom(1.0);
+    }
+
+    if (zoomContainer) {
+      zoomContainer.style.display = 'flex';
+      const btnWide = document.getElementById('btnZoomWide');
+      const btn1x = document.getElementById('btnZoom1x');
+      const btn2x = document.getElementById('btnZoom2x');
+
+      if (btnWide) btnWide.style.display = minZoom < 1.0 ? 'inline-block' : 'none';
+      if (btn1x) btn1x.style.display = (minZoom <= 1.0 && maxZoom >= 1.0) ? 'inline-block' : 'none';
+      if (btn2x) btn2x.style.display = maxZoom >= 1.8 ? 'inline-block' : 'none';
+      updateZoomUI(1.0);
+    }
+    if (qualityPill) {
+      qualityPill.textContent = '✨ Kamera Utama 1x (Mode Jernih HD)';
+    }
+  } else {
+    if (zoomContainer) zoomContainer.style.display = 'none';
+    if (qualityPill) {
+      qualityPill.textContent = '✨ Kamera Aktif (Resolusi Tinggi)';
+    }
+  }
+
+  // 2. Tombol Ganti Lensa Belakang jika terdeteksi lebih dari 1 kamera belakang fisik
+  const btnSwitchLens = document.getElementById('btnSwitchRearLens');
+  const lensLabel = document.getElementById('lensLabel');
+  if (btnSwitchLens) {
+    if (currentFacingMode === 'environment' && rearCameraDevices.length > 1) {
+      btnSwitchLens.style.display = 'flex';
+      if (lensLabel) {
+        lensLabel.textContent = `Lensa ${currentRearCameraIndex + 1}`;
+      }
+    } else {
+      btnSwitchLens.style.display = 'none';
+    }
+  }
+
+  // 3. Pasang Autofocus kontinu
+  if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+    track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+  }
+}
+
+async function setCameraZoom(zoomVal) {
+  if (!cameraTrack) return;
+  const capabilities = typeof cameraTrack.getCapabilities === 'function' ? cameraTrack.getCapabilities() : {};
+  if (!capabilities.zoom) return;
+
+  const minZ = capabilities.zoom.min || 1.0;
+  const maxZ = capabilities.zoom.max || 1.0;
+  const targetZ = Math.min(maxZ, Math.max(minZ, zoomVal));
+
+  try {
+    await cameraTrack.applyConstraints({
+      advanced: [{ zoom: targetZ }]
     });
+    currentZoomLevel = targetZ;
+    updateZoomUI(targetZ);
+  } catch (errZ) {
+    console.warn('applyConstraints zoom gagal:', errZ);
+  }
+}
+
+function updateZoomUI(currentZ) {
+  const pills = document.querySelectorAll('.zoom-pill');
+  pills.forEach(p => p.classList.remove('active'));
+  if (currentZ < 0.9) {
+    document.getElementById('btnZoomWide')?.classList.add('active');
+  } else if (currentZ >= 1.8) {
+    document.getElementById('btnZoom2x')?.classList.add('active');
+  } else {
+    document.getElementById('btnZoom1x')?.classList.add('active');
+  }
+}
+
+async function switchRearCameraLens() {
+  if (rearCameraDevices.length <= 1) return;
+  currentRearCameraIndex = (currentRearCameraIndex + 1) % rearCameraDevices.length;
+  const selectedDev = rearCameraDevices[currentRearCameraIndex];
+  const devName = selectedDev.label || `Lensa ${currentRearCameraIndex + 1}`;
+  showAppToast(`Beralih ke: ${devName}`, 'info', 1800);
+  startCameraStream();
+}
+
+function attachVideoFocusListener(video) {
+  if (!video || focusListenerAttached) return;
+  focusListenerAttached = true;
+
+  video.addEventListener('click', (event) => {
+    if (!cameraTrack) return;
+    const rect = video.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    showFocusRing(x, y);
+
+    const capabilities = typeof cameraTrack.getCapabilities === 'function' ? cameraTrack.getCapabilities() : {};
+    if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+      const normX = Math.max(0, Math.min(1, x / rect.width));
+      const normY = Math.max(0, Math.min(1, y / rect.height));
+      cameraTrack.applyConstraints({
+        advanced: [{ focusMode: 'continuous', pointsOfInterest: [{ x: normX, y: normY }] }]
+      }).catch(() => {});
+    }
+  });
+}
+
+function showFocusRing(x, y) {
+  const ring = document.getElementById('cameraFocusRing');
+  if (!ring) return;
+  ring.style.left = x + 'px';
+  ring.style.top = y + 'px';
+  ring.classList.add('active');
+  setTimeout(() => {
+    ring.classList.remove('active');
+  }, 900);
 }
 
 function stopCameraStream() {
@@ -1464,6 +1663,7 @@ function stopCameraStream() {
     }
     cameraStream.getTracks().forEach(track => track.stop());
     cameraStream = null;
+    cameraTrack = null;
   }
   isFlashOn = false;
   isScreenFlashActive = false;
@@ -1506,8 +1706,8 @@ async function toggleFlashTorch() {
 }
 
 function updateFlashUI(active) {
-  const btns = [document.getElementById('btnToggleFlash'), document.getElementById('btnToggleFlashFooter')];
-  const icons = [document.getElementById('flashIcon'), document.getElementById('flashIconFooter')];
+  const btns = [document.getElementById('btnToggleFlash')];
+  const icons = [document.getElementById('flashIcon')];
 
   btns.forEach(btn => {
     if (!btn) return;
@@ -1550,19 +1750,31 @@ function toggleCameraFacing() {
   startCameraStream();
 }
 
-function triggerFallbackFile() {
-  const input = document.getElementById('fallbackFileInput');
+function triggerNativeCamera() {
+  const input = document.getElementById('nativeCameraInput') || document.getElementById('fallbackFileInput');
   if (input) {
     input.value = '';
     input.click();
   }
 }
 
+function triggerGalleryFile() {
+  const input = document.getElementById('galleryFileInput') || document.getElementById('fallbackFileInput');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+function triggerFallbackFile() {
+  triggerNativeCamera();
+}
+
 function handleFallbackFileSelected(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
 
-  showLoading('Mengompres Foto...', 'Mengoptimasi resolusi gambar...');
+  showLoading('Mengompres Foto...', 'Mengoptimasi kejernihan dokumen C-Plano...');
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
@@ -1573,21 +1785,54 @@ function handleFallbackFileSelected(event) {
       renderPageSlots();
       hideLoading();
       closeCameraModal();
+      showAppToast(`Foto Halaman ${activeSlotIndex + 1} berhasil dimuat dengan jernih.`, 'success', 2200);
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-function capturePhotoFromVideo() {
+async function capturePhotoFromVideo() {
   const video = document.getElementById('cameraVideo');
   if (!video || !video.videoWidth) {
-    triggerFallbackFile();
+    triggerNativeCamera();
     return;
   }
 
-  showLoading('Mengambil Foto...', 'Mengompresi ke standar canvas...');
-  
+  showLoading('Mengambil Foto...', 'Memproses tangkapan sensor kamera utama...');
+
+  const track = cameraStream ? cameraStream.getVideoTracks()[0] : null;
+
+  // 1. Upayakan tangkapan sensor perangkat keras resolusi penuh via ImageCapture API
+  if (window.ImageCapture && track && track.readyState === 'live') {
+    try {
+      const imageCap = new ImageCapture(track);
+      const photoBlob = await imageCap.takePhoto({
+        fillLightMode: isFlashOn ? 'flash' : 'off'
+      });
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const compressedDataUrl = compressImageCanvas(img);
+          pagesState[activeSlotIndex].dataUrl = compressedDataUrl;
+          pagesState[activeSlotIndex].rotation = 0;
+          renderPageSlots();
+          hideLoading();
+          closeCameraModal();
+          showAppToast(`Halaman ${activeSlotIndex + 1} berhasil diambil dengan kamera utama.`, 'success', 2200);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(photoBlob);
+      return;
+    } catch (errIC) {
+      console.warn('ImageCapture takePhoto fallback ke video canvas:', errIC);
+    }
+  }
+
+  // 2. Fallback tangkapan canvas resolusi penuh dari video stream
   const offscreenCanvas = document.createElement('canvas');
   offscreenCanvas.width = video.videoWidth;
   offscreenCanvas.height = video.videoHeight;
@@ -1603,36 +1848,52 @@ function capturePhotoFromVideo() {
     renderPageSlots();
     hideLoading();
     closeCameraModal();
+    showAppToast(`Halaman ${activeSlotIndex + 1} berhasil disimpan.`, 'success', 2200);
   };
   img.src = rawDataUrl;
 }
 
 /**
- * Kompresi Resolusi Canvas Client-Side
- * Optimasi kuota berkas:
- * - 3 Halaman: Max 1500x1125, Kualitas JPEG 0.72 (Total PDF aman < 1 MB)
- * - 20 Halaman: Max 1280x960, Kualitas JPEG 0.66 (Total PDF aman < 5 MB)
+ * Kompresi Resolusi Canvas Client-Side (Resolusi Tinggi & Jernih untuk C-Plano)
+ * Orientasi Dinamis (Portrait / Landscape) tanpa pemotongan resolusi:
+ * - <= 3 Halaman (PPWP, DPD, Pilgub, Pilbup): Max 2560 x 1920 (5.0 Megapixel), Kualitas JPEG 0.82
+ * - 20 Halaman (DPR, DPRD): Max 1800 x 1350 (2.4 Megapixel), Kualitas JPEG 0.74
+ * Ditambah kurva kontras & kecerahan dokumen agar teks hitam dan angka perolehan suara pekat tajam.
  */
 function compressImageCanvas(img, rotationDegree = 0) {
   const currentTargetPages = typeof getTargetPagesForCurrentLembaga === 'function' ? getTargetPagesForCurrentLembaga() : 3;
   const isMultiPage20 = currentTargetPages > 3;
 
-  const MAX_WIDTH = isMultiPage20 ? 1280 : 1500;
-  const MAX_HEIGHT = isMultiPage20 ? 960 : 1125;
-  const jpegQuality = isMultiPage20 ? 0.66 : 0.72;
+  // Batas resolusi sisi panjang dan sisi pendek berbasis orientasi nyata
+  const MAX_LONG_EDGE = isMultiPage20 ? 1800 : 2560;
+  const MAX_SHORT_EDGE = isMultiPage20 ? 1350 : 1920;
+  const initialQuality = isMultiPage20 ? 0.74 : 0.82;
 
-  let width = img.naturalWidth || img.width;
-  let height = img.naturalHeight || img.height;
+  let origWidth = img.naturalWidth || img.width;
+  let origHeight = img.naturalHeight || img.height;
 
-  if (width > height) {
-    if (width > MAX_WIDTH) {
-      height = Math.round((height * MAX_WIDTH) / width);
-      width = MAX_WIDTH;
+  // Tentukan apakah gambar portrait (vertikal) atau landscape (horizontal)
+  const isPortrait = origHeight >= origWidth;
+  let targetWidth = origWidth;
+  let targetHeight = origHeight;
+
+  if (isPortrait) {
+    if (targetHeight > MAX_LONG_EDGE) {
+      targetWidth = Math.round((targetWidth * MAX_LONG_EDGE) / targetHeight);
+      targetHeight = MAX_LONG_EDGE;
+    }
+    if (targetWidth > MAX_SHORT_EDGE) {
+      targetHeight = Math.round((targetHeight * MAX_SHORT_EDGE) / targetWidth);
+      targetWidth = MAX_SHORT_EDGE;
     }
   } else {
-    if (height > MAX_HEIGHT) {
-      width = Math.round((width * MAX_HEIGHT) / height);
-      height = MAX_HEIGHT;
+    if (targetWidth > MAX_LONG_EDGE) {
+      targetHeight = Math.round((targetHeight * MAX_LONG_EDGE) / targetWidth);
+      targetWidth = MAX_LONG_EDGE;
+    }
+    if (targetHeight > MAX_SHORT_EDGE) {
+      targetWidth = Math.round((targetWidth * MAX_SHORT_EDGE) / targetHeight);
+      targetHeight = MAX_SHORT_EDGE;
     }
   }
 
@@ -1640,11 +1901,16 @@ function compressImageCanvas(img, rotationDegree = 0) {
   const ctx = canvas.getContext('2d');
 
   if (rotationDegree === 90 || rotationDegree === 270) {
-    canvas.width = height;
-    canvas.height = width;
+    canvas.width = targetHeight;
+    canvas.height = targetWidth;
   } else {
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+  }
+
+  // Terapkan peningkatan kontras dokumen agar teks/angka tulisan tangan pekat dan latar belakang bersih
+  if ('filter' in ctx) {
+    ctx.filter = 'contrast(1.06) brightness(1.02)';
   }
 
   ctx.save();
@@ -1652,13 +1918,25 @@ function compressImageCanvas(img, rotationDegree = 0) {
   ctx.rotate((rotationDegree * Math.PI) / 180);
 
   if (rotationDegree === 90 || rotationDegree === 270) {
-    ctx.drawImage(img, -height / 2, -width / 2, height, width);
+    ctx.drawImage(img, -targetHeight / 2, -targetWidth / 2, targetHeight, targetWidth);
   } else {
-    ctx.drawImage(img, -width / 2, -height / 2, width, height);
+    ctx.drawImage(img, -targetWidth / 2, -targetHeight / 2, targetWidth, targetHeight);
   }
   ctx.restore();
 
-  return canvas.toDataURL('image/jpeg', jpegQuality);
+  // Kompresi kualitas awal
+  let dataUrl = canvas.toDataURL('image/jpeg', initialQuality);
+
+  // Kontrol ukuran berkas adaptif agar total PDF selalu berada di bawah kuota (1 MB untuk <=3 Hal, 5 MB untuk 20 Hal)
+  const maxBytesPerPage = isMultiPage20 ? (240 * 1024) : Math.round((950 * 1024) / Math.max(1, currentTargetPages));
+  let approxBytes = Math.round((dataUrl.length * 3) / 4);
+
+  if (approxBytes > maxBytesPerPage) {
+    const adaptiveQuality = isMultiPage20 ? 0.68 : 0.76;
+    dataUrl = canvas.toDataURL('image/jpeg', adaptiveQuality);
+  }
+
+  return dataUrl;
 }
 
 /**

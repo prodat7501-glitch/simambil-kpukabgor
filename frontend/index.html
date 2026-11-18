@@ -409,12 +409,15 @@
           <div id="cameraSlotTitle" class="camera-slot-title">Halaman 1</div>
         </div>
         <div class="camera-header-actions">
+          <button id="btnSwitchRearLens" class="camera-action-btn" onclick="switchRearCameraLens()" title="Ganti Lensa Belakang (1x / 0.5x)" style="display:none; width: auto; padding: 0 8px; border-radius: 16px;">
+            <span id="lensLabel" style="font-size: 11px; font-weight: 800;">1x</span>
+          </button>
           <button id="btnToggleFlash" class="camera-action-btn" onclick="toggleFlashTorch()" title="Nyalakan Flash / Blitz">
             <svg id="flashIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
             </svg>
           </button>
-          <button class="camera-action-btn" onclick="toggleCameraFacing()" title="Ganti Kamera">
+          <button class="camera-action-btn" onclick="toggleCameraFacing()" title="Ganti Kamera Depan / Belakang">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M20 10c0-4.418-3.582-8-8-8s-8 3.582-8 8c0 2.21 1.79 4 4 4h2"></path>
               <polyline points="7 14 10 14 10 11"></polyline>
@@ -428,31 +431,54 @@
 
       <div class="camera-viewport">
         <video id="cameraVideo" autoplay playsinline muted></video>
-        <div class="camera-guide-overlay"></div>
+        <div class="camera-guide-overlay">
+          <div class="guide-corner top-left"></div>
+          <div class="guide-corner top-right"></div>
+          <div class="guide-corner bottom-left"></div>
+          <div class="guide-corner bottom-right"></div>
+        </div>
+        <div id="cameraFocusRing" class="camera-focus-ring"></div>
+        <div id="cameraQualityPill" class="camera-quality-pill">✨ Kamera Utama 1x (Mode Jernih HD)</div>
+        <div id="cameraZoomControls" class="camera-zoom-bar" style="display:none;">
+          <button type="button" class="zoom-pill" id="btnZoomWide" onclick="setCameraZoom(0.6)">0.6x</button>
+          <button type="button" class="zoom-pill active" id="btnZoom1x" onclick="setCameraZoom(1.0)">1x</button>
+          <button type="button" class="zoom-pill" id="btnZoom2x" onclick="setCameraZoom(2.0)">2x</button>
+        </div>
         <div id="screenFlashOverlay" class="screen-flash-overlay"></div>
       </div>
 
       <div class="camera-footer">
-        <button class="camera-action-btn" onclick="triggerFallbackFile()" title="Ambil dari File / Galeri">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-          </svg>
+        <button type="button" class="camera-footer-btn" onclick="triggerGalleryFile()" title="Ambil dari Galeri / Berkas Foto">
+          <div class="footer-btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+          </div>
+          <span class="footer-btn-label">Galeri</span>
         </button>
 
-        <div class="shutter-btn" onclick="capturePhotoFromVideo()">
-          <div class="shutter-inner"></div>
+        <div class="shutter-wrapper">
+          <div class="shutter-btn" onclick="capturePhotoFromVideo()" title="Ambil Foto Resolusi Tinggi">
+            <div class="shutter-inner"></div>
+          </div>
+          <span class="shutter-label">Ambil Foto (1x)</span>
         </div>
 
-        <button id="btnToggleFlashFooter" class="camera-action-btn" onclick="toggleFlashTorch()" title="Nyalakan Flash / Blitz">
-          <svg id="flashIconFooter" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-          </svg>
+        <button type="button" class="camera-footer-btn native-cam-btn" onclick="triggerNativeCamera()" title="Buka Kamera Bawaan HP (Kualitas Penuh 1x)">
+          <div class="footer-btn-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+              <circle cx="12" cy="13" r="4"></circle>
+            </svg>
+          </div>
+          <span class="footer-btn-label">Kamera HP</span>
         </button>
       </div>
       
-      <input type="file" id="fallbackFileInput" accept="image/*" capture="environment" style="display:none" onchange="handleFallbackFileSelected(event)">
+      <input type="file" id="nativeCameraInput" accept="image/*" capture="environment" style="display:none" onchange="handleFallbackFileSelected(event)">
+      <input type="file" id="galleryFileInput" accept="image/*" style="display:none" onchange="handleFallbackFileSelected(event)">
     </div>
 
     <!-- ========================================================================= -->
