@@ -1158,7 +1158,7 @@ body {
   justify-content: center;
   overflow: hidden;
   background: #030712;
-  padding: 10px;
+  padding: 4px;
 }
 
 .crop-editor-container {
@@ -1169,6 +1169,7 @@ body {
   align-items: center;
   justify-content: center;
   touch-action: none;
+  overflow: hidden;
 }
 
 #cropInteractionCanvas {
@@ -1177,6 +1178,7 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
   border-radius: 4px;
   touch-action: none;
+  display: block;
 }
 
 .crop-magnifier-loupe {
@@ -1228,7 +1230,7 @@ body {
 }
 
 .crop-footer {
-  padding: 10px 14px 20px 14px;
+  padding: 8px 12px 14px 12px;
   background: #0f172a;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
@@ -1238,21 +1240,21 @@ body {
 }
 
 .crop-toolbar {
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
 
 .crop-tool-btn {
-  flex: 1;
-  font-size: 11px;
-  padding: 8px 4px;
+  font-size: 10.5px;
+  padding: 7px 2px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   border-radius: 8px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .btn-apply-crop {
