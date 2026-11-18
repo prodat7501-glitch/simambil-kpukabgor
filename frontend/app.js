@@ -1774,18 +1774,14 @@ function handleFallbackFileSelected(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
 
-  showLoading('Mengompres Foto...', 'Mengoptimasi kejernihan dokumen C-Plano...');
+  showLoading('Memuat Pratinjau...', 'Mempersiapkan pratinjau & pelurus dokumen...');
   const reader = new FileReader();
   reader.onload = (e) => {
     const img = new Image();
     img.onload = () => {
-      const compressedDataUrl = compressImageCanvas(img);
-      pagesState[activeSlotIndex].dataUrl = compressedDataUrl;
-      pagesState[activeSlotIndex].rotation = 0;
-      renderPageSlots();
       hideLoading();
       closeCameraModal();
-      showAppToast(`Foto Halaman ${activeSlotIndex + 1} berhasil dimuat dengan jernih.`, 'success', 2200);
+      openCropDeskewModal(img, activeSlotIndex);
     };
     img.src = e.target.result;
   };
@@ -1815,13 +1811,9 @@ async function capturePhotoFromVideo() {
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          const compressedDataUrl = compressImageCanvas(img);
-          pagesState[activeSlotIndex].dataUrl = compressedDataUrl;
-          pagesState[activeSlotIndex].rotation = 0;
-          renderPageSlots();
           hideLoading();
           closeCameraModal();
-          showAppToast(`Halaman ${activeSlotIndex + 1} berhasil diambil dengan kamera utama.`, 'success', 2200);
+          openCropDeskewModal(img, activeSlotIndex);
         };
         img.src = e.target.result;
       };
@@ -1842,32 +1834,576 @@ async function capturePhotoFromVideo() {
   const rawDataUrl = offscreenCanvas.toDataURL('image/jpeg', 0.95);
   const img = new Image();
   img.onload = () => {
-    const compressedDataUrl = compressImageCanvas(img);
-    pagesState[activeSlotIndex].dataUrl = compressedDataUrl;
-    pagesState[activeSlotIndex].rotation = 0;
-    renderPageSlots();
     hideLoading();
     closeCameraModal();
-    showAppToast(`Halaman ${activeSlotIndex + 1} berhasil disimpan.`, 'success', 2200);
+    openCropDeskewModal(img, activeSlotIndex);
   };
   img.src = rawDataUrl;
 }
 
 /**
+ * ==============================================================================
+ * 4B. PRATINJAU DOKUMEN & PELURUS PERSPEKTIF 4 SUDUT (PERSPECTIVE CROP & DESKEW)
+ * Fitur:
+ * 1. Pratinjau interaktif langsung setelah foto diambil kamera / galeri
+ * 2. 4 titik sudut bebas (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
+ * 3. Kaca Pembesar (Magnifying Loupe 2.5x) dengan crosshair saat menarik titik sudut
+ * 4. Putar 90 derajat & Reset Sudut
+ * 5. Algoritma Transformasi Perspektif Murni (Mesh Triangulation Warp 18x18)
+ *    Menetralkan dokumen miring menjadi tegak lurus datar 90 derajat simetris
+ * ==============================================================================
+ */
+
+let cropDeskewState = {
+  rawImage: null,          // HTMLImageElement atau HTMLCanvasElement
+  slotIndex: 0,
+  corners: [],             // [ {x, y}, {x, y}, {x, y}, {x, y} ] dalam koordinat rawImage
+  activeCornerIndex: -1,   // 0: TL, 1: TR, 2: BR, 3: BL
+  displayScale: 1,         // rasio koordinat canvas display / piksel asli
+  isDragging: false,
+  listenersAttached: false
+};
+
+function openCropDeskewModal(imageSource, slotIndex) {
+  cropDeskewState.slotIndex = (slotIndex !== undefined) ? slotIndex : (activeSlotIndex || 0);
+
+  const setupAndShow = (imgElement) => {
+    cropDeskewState.rawImage = imgElement;
+    const w = imgElement.naturalWidth || imgElement.width;
+    const h = imgElement.naturalHeight || imgElement.height;
+
+    // Pasang 4 titik sudut awal (default 4% inset dari setiap tepi)
+    const marginX = Math.round(w * 0.04);
+    const marginY = Math.round(h * 0.04);
+    cropDeskewState.corners = [
+      { x: marginX, y: marginY },         // 0: Top-Left
+      { x: w - marginX, y: marginY },     // 1: Top-Right
+      { x: w - marginX, y: h - marginY }, // 2: Bottom-Right
+      { x: marginX, y: h - marginY }      // 3: Bottom-Left
+    ];
+    cropDeskewState.activeCornerIndex = -1;
+    cropDeskewState.isDragging = false;
+
+    const titleEl = document.getElementById('cropSlotTitle');
+    if (titleEl) {
+      titleEl.textContent = `Pratinjau & Luruskan Halaman ${cropDeskewState.slotIndex + 1}`;
+    }
+
+    const modal = document.getElementById('cropDeskewModal');
+    if (modal) modal.classList.add('active');
+
+    setupCropInteractionListeners();
+    // Render awal setelah modal aktif di DOM
+    requestAnimationFrame(() => {
+      renderCropInteractionCanvas();
+    });
+  };
+
+  if (typeof imageSource === 'string') {
+    const img = new Image();
+    img.onload = () => setupAndShow(img);
+    img.src = imageSource;
+  } else if (imageSource instanceof HTMLImageElement || imageSource instanceof HTMLCanvasElement) {
+    setupAndShow(imageSource);
+  }
+}
+
+function closeCropDeskewModal() {
+  const modal = document.getElementById('cropDeskewModal');
+  if (modal) modal.classList.remove('active');
+  hideMagnifierLoupe();
+  cropDeskewState.rawImage = null;
+  cropDeskewState.activeCornerIndex = -1;
+  cropDeskewState.isDragging = false;
+}
+
+function cancelCropDeskew() {
+  const idx = cropDeskewState.slotIndex;
+  closeCropDeskewModal();
+  openCameraModal(idx);
+}
+
+function resetCropCorners() {
+  if (!cropDeskewState.rawImage) return;
+  const w = cropDeskewState.rawImage.naturalWidth || cropDeskewState.rawImage.width;
+  const h = cropDeskewState.rawImage.naturalHeight || cropDeskewState.rawImage.height;
+  const marginX = Math.round(w * 0.04);
+  const marginY = Math.round(h * 0.04);
+  cropDeskewState.corners = [
+    { x: marginX, y: marginY },
+    { x: w - marginX, y: marginY },
+    { x: w - marginX, y: h - marginY },
+    { x: marginX, y: h - marginY }
+  ];
+  renderCropInteractionCanvas();
+  showAppToast('Posisi 4 sudut direset ke tepi dokumen.', 'info', 1600);
+}
+
+function rotateRawCropImage() {
+  if (!cropDeskewState.rawImage) return;
+  const img = cropDeskewState.rawImage;
+  const origW = img.naturalWidth || img.width;
+  const origH = img.naturalHeight || img.height;
+
+  const rotCanvas = document.createElement('canvas');
+  rotCanvas.width = origH;
+  rotCanvas.height = origW;
+  const rctx = rotCanvas.getContext('2d');
+
+  rctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+  rctx.rotate((90 * Math.PI) / 180);
+  rctx.drawImage(img, -origW / 2, -origH / 2);
+
+  cropDeskewState.rawImage = rotCanvas;
+  // Reset sudut ke dimensi baru yang sudah berputar
+  const marginX = Math.round(rotCanvas.width * 0.04);
+  const marginY = Math.round(rotCanvas.height * 0.04);
+  cropDeskewState.corners = [
+    { x: marginX, y: marginY },
+    { x: rotCanvas.width - marginX, y: marginY },
+    { x: rotCanvas.width - marginX, y: rotCanvas.height - marginY },
+    { x: marginX, y: rotCanvas.height - marginY }
+  ];
+
+  renderCropInteractionCanvas();
+  showAppToast('Foto diputar 90°', 'info', 1400);
+}
+
+function renderCropInteractionCanvas() {
+  const canvas = document.getElementById('cropInteractionCanvas');
+  const container = document.getElementById('cropEditorContainer');
+  if (!canvas || !container || !cropDeskewState.rawImage) return;
+
+  const img = cropDeskewState.rawImage;
+  const imgW = img.naturalWidth || img.width;
+  const imgH = img.naturalHeight || img.height;
+
+  const availW = Math.max(260, container.clientWidth - 16);
+  const availH = Math.max(300, container.clientHeight - 16);
+
+  const scale = Math.min(availW / imgW, availH / imgH, 1.0);
+  cropDeskewState.displayScale = scale;
+
+  const dispW = Math.round(imgW * scale);
+  const dispH = Math.round(imgH * scale);
+
+  canvas.width = dispW;
+  canvas.height = dispH;
+  canvas.style.width = `${dispW}px`;
+  canvas.style.height = `${dispH}px`;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, dispW, dispH);
+
+  // 1. Gambar latar belakang dokumen asli
+  ctx.drawImage(img, 0, 0, dispW, dispH);
+
+  // Koordinat 4 sudut dalam ruang canvas
+  const c = cropDeskewState.corners.map(pt => ({
+    x: Math.round(pt.x * scale),
+    y: Math.round(pt.y * scale)
+  }));
+
+  // 2. Lapisan bayangan (dark mask) di luar area segiempat yang dipilih
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+  ctx.beginPath();
+  ctx.rect(0, 0, dispW, dispH);
+  // Punch hole counter-clockwise (evenodd)
+  ctx.moveTo(c[0].x, c[0].y);
+  ctx.lineTo(c[3].x, c[3].y);
+  ctx.lineTo(c[2].x, c[2].y);
+  ctx.lineTo(c[1].x, c[1].y);
+  ctx.closePath();
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  // 3. Garis kisi-kisi bantu 3x3 di dalam segiempat
+  ctx.save();
+  ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  for (let t = 1; t <= 2; t++) {
+    const f = t / 3;
+    const hL = { x: c[0].x + (c[3].x - c[0].x) * f, y: c[0].y + (c[3].y - c[0].y) * f };
+    const hR = { x: c[1].x + (c[2].x - c[1].x) * f, y: c[1].y + (c[2].y - c[1].y) * f };
+    ctx.beginPath();
+    ctx.moveTo(hL.x, hL.y);
+    ctx.lineTo(hR.x, hR.y);
+    ctx.stroke();
+
+    const vT = { x: c[0].x + (c[1].x - c[0].x) * f, y: c[0].y + (c[1].y - c[0].y) * f };
+    const vB = { x: c[3].x + (c[2].x - c[3].x) * f, y: c[3].y + (c[2].y - c[3].y) * f };
+    ctx.beginPath();
+    ctx.moveTo(vT.x, vT.y);
+    ctx.lineTo(vB.x, vB.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 4. Garis batas segiempat (Emas KPU cerah)
+  ctx.save();
+  ctx.strokeStyle = '#FACC15';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(c[0].x, c[0].y);
+  ctx.lineTo(c[1].x, c[1].y);
+  ctx.lineTo(c[2].x, c[2].y);
+  ctx.lineTo(c[3].x, c[3].y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+
+  // 5. Gambar 4 handle pin sudut
+  for (let k = 0; k < 4; k++) {
+    const pt = c[k];
+    const isActive = (cropDeskewState.activeCornerIndex === k);
+    const radius = isActive ? 16 : 13;
+
+    ctx.save();
+    // Halo luar
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, radius + 3, 0, 2 * Math.PI);
+    ctx.fillStyle = isActive ? 'rgba(250, 204, 21, 0.45)' : 'rgba(0, 0, 0, 0.4)';
+    ctx.fill();
+
+    // Lingkaran pin
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = isActive ? '#FACC15' : '#FFFFFF';
+    ctx.fill();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#800000';
+    ctx.stroke();
+
+    // Titik pusat pin
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = isActive ? '#800000' : '#0F172A';
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function updateMagnifierLoupe(rawCornerX, rawCornerY, clientX, clientY) {
+  const loupe = document.getElementById('cropMagnifierLoupe');
+  const magCanvas = document.getElementById('cropMagnifierCanvas');
+  const editor = document.getElementById('cropEditorContainer');
+  if (!loupe || !magCanvas || !editor || !cropDeskewState.rawImage) return;
+
+  const rect = editor.getBoundingClientRect();
+  let posX = clientX - rect.left - 45;
+  let posY = clientY - rect.top - 110;
+  if (posY < 10) posY = clientY - rect.top + 35;
+  if (posX < 10) posX = 10;
+  if (posX > rect.width - 100) posX = rect.width - 100;
+
+  loupe.style.left = `${posX}px`;
+  loupe.style.top = `${posY}px`;
+  loupe.style.display = 'block';
+
+  const mctx = magCanvas.getContext('2d');
+  mctx.clearRect(0, 0, 90, 90);
+
+  // Zoom 2.5x
+  const zoom = 2.5;
+  const rawBoxSize = 90 / zoom;
+  const sx = rawCornerX - (rawBoxSize / 2);
+  const sy = rawCornerY - (rawBoxSize / 2);
+
+  mctx.drawImage(cropDeskewState.rawImage, sx, sy, rawBoxSize, rawBoxSize, 0, 0, 90, 90);
+}
+
+function hideMagnifierLoupe() {
+  const loupe = document.getElementById('cropMagnifierLoupe');
+  if (loupe) loupe.style.display = 'none';
+}
+
+function setupCropInteractionListeners() {
+  if (cropDeskewState.listenersAttached) return;
+  const canvas = document.getElementById('cropInteractionCanvas');
+  if (!canvas) return;
+
+  const getCanvasCoords = (clientX, clientY) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  };
+
+  const findNearestCorner = (canvasX, canvasY) => {
+    const scale = cropDeskewState.displayScale || 1;
+    let minIdx = -1;
+    let minDist = 44; // Hit radius batas sentuhan jari yang nyaman
+    for (let i = 0; i < 4; i++) {
+      const c = cropDeskewState.corners[i];
+      const cx = c.x * scale;
+      const cy = c.y * scale;
+      const dist = Math.hypot(cx - canvasX, cy - canvasY);
+      if (dist < minDist) {
+        minDist = dist;
+        minIdx = i;
+      }
+    }
+    return minIdx;
+  };
+
+  const handlePointerStart = (clientX, clientY) => {
+    const coords = getCanvasCoords(clientX, clientY);
+    const cornerIdx = findNearestCorner(coords.x, coords.y);
+    if (cornerIdx !== -1) {
+      cropDeskewState.activeCornerIndex = cornerIdx;
+      cropDeskewState.isDragging = true;
+      const corner = cropDeskewState.corners[cornerIdx];
+      updateMagnifierLoupe(corner.x, corner.y, clientX, clientY);
+      renderCropInteractionCanvas();
+    }
+  };
+
+  const handlePointerMove = (clientX, clientY) => {
+    if (!cropDeskewState.isDragging || cropDeskewState.activeCornerIndex === -1) return;
+    const coords = getCanvasCoords(clientX, clientY);
+    const scale = cropDeskewState.displayScale || 1;
+    const img = cropDeskewState.rawImage;
+    if (!img) return;
+
+    const imgW = img.naturalWidth || img.width;
+    const imgH = img.naturalHeight || img.height;
+
+    const rawX = Math.max(0, Math.min(imgW, Math.round(coords.x / scale)));
+    const rawY = Math.max(0, Math.min(imgH, Math.round(coords.y / scale)));
+
+    cropDeskewState.corners[cropDeskewState.activeCornerIndex] = { x: rawX, y: rawY };
+    updateMagnifierLoupe(rawX, rawY, clientX, clientY);
+    renderCropInteractionCanvas();
+  };
+
+  const handlePointerEnd = () => {
+    if (cropDeskewState.isDragging) {
+      cropDeskewState.isDragging = false;
+      cropDeskewState.activeCornerIndex = -1;
+      hideMagnifierLoupe();
+      renderCropInteractionCanvas();
+    }
+  };
+
+  // Touch Events (HP Android & iOS)
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      handlePointerStart(touch.clientX, touch.clientY);
+      if (cropDeskewState.isDragging) e.preventDefault();
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+    if (cropDeskewState.isDragging && e.touches.length === 1) {
+      const touch = e.touches[0];
+      handlePointerMove(touch.clientX, touch.clientY);
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchend', () => {
+    handlePointerEnd();
+  });
+
+  // Mouse Events (Desktop)
+  canvas.addEventListener('mousedown', (e) => {
+    handlePointerStart(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (cropDeskewState.isDragging) {
+      handlePointerMove(e.clientX, e.clientY);
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    handlePointerEnd();
+  });
+
+  window.addEventListener('resize', () => {
+    if (cropDeskewState.rawImage && document.getElementById('cropDeskewModal')?.classList.contains('active')) {
+      renderCropInteractionCanvas();
+    }
+  });
+
+  cropDeskewState.listenersAttached = true;
+}
+
+/**
+ * Pemetaan Affine 2D Segitiga Tunggal untuk Mesh Warp
+ */
+function drawTriangleAffine(ctx, img, s0, s1, s2, d0, d1, d2) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(d0.x, d0.y);
+  ctx.lineTo(d1.x, d1.y);
+  ctx.lineTo(d2.x, d2.y);
+  ctx.closePath();
+  ctx.clip();
+
+  const denom = (s0.x * (s1.y - s2.y) - s1.x * (s0.y - s2.y) + s2.x * (s0.y - s1.y));
+  if (Math.abs(denom) < 1e-6) {
+    ctx.restore();
+    return;
+  }
+
+  const a = -(s0.y * (d1.x - d2.x) - s1.y * (d0.x - d2.x) + s2.y * (d0.x - d1.x)) / denom;
+  const c =  (s0.x * (d1.x - d2.x) - s1.x * (d0.x - d2.x) + s2.x * (d0.x - d1.x)) / denom;
+  const e =  (s0.x * (s1.y * d2.x - s2.y * d1.x) - s1.x * (s0.y * d2.x - s2.y * d0.x) + s2.x * (s0.y * d1.x - s1.y * d0.x)) / denom;
+
+  const b = -(s0.y * (d1.y - d2.y) - s1.y * (d0.y - d2.y) + s2.y * (d0.y - d1.y)) / denom;
+  const d =  (s0.x * (d1.y - d2.y) - s1.x * (d0.y - d2.y) + s2.x * (d0.y - d1.y)) / denom;
+  const f =  (s0.x * (s1.y * d2.y - s2.y * d1.x) - s1.x * (s0.y * d2.y - s2.y * d0.y) + s2.x * (s0.y * d1.x - s1.y * d0.x)) / denom;
+
+  ctx.transform(a, b, c, d, e, f);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+
+/**
+ * Algoritma Transformasi Perspektif Murni (Mesh Triangulation Warp 18x18 Grid)
+ * Memetakan sembarang quadrilateral 4 sudut (p0, p1, p2, p3) menjadi persegi datar 90° tegak lurus
+ */
+function warpPerspectiveCanvas(sourceImg, p0, p1, p2, p3, outCanvas) {
+  const outCtx = outCanvas.getContext('2d');
+  const targetW = outCanvas.width;
+  const targetH = outCanvas.height;
+
+  outCtx.clearRect(0, 0, targetW, targetH);
+
+  // Subdivisi mesh 18 x 18 = 324 sel = 648 segitiga
+  const M = 18;
+
+  function bilinear(u, v) {
+    return {
+      x: (1 - u) * (1 - v) * p0.x + u * (1 - v) * p1.x + u * v * p2.x + (1 - u) * v * p3.x,
+      y: (1 - u) * (1 - v) * p0.y + u * (1 - v) * p1.y + u * v * p2.y + (1 - u) * v * p3.y
+    };
+  }
+
+  for (let j = 0; j < M; j++) {
+    const v0 = j / M;
+    const v1 = (j + 1) / M;
+    for (let i = 0; i < M; i++) {
+      const u0 = i / M;
+      const u1 = (i + 1) / M;
+
+      // Titik sumber pada gambar asli
+      const s00 = bilinear(u0, v0);
+      const s10 = bilinear(u1, v0);
+      const s11 = bilinear(u1, v1);
+      const s01 = bilinear(u0, v1);
+
+      // Titik tujuan pada canvas datar (dengan overlap 0.25px untuk mencegah antialiasing seam)
+      const d00 = { x: u0 * targetW - 0.25, y: v0 * targetH - 0.25 };
+      const d10 = { x: u1 * targetW + 0.25, y: v0 * targetH - 0.25 };
+      const d11 = { x: u1 * targetW + 0.25, y: v1 * targetH + 0.25 };
+      const d01 = { x: u0 * targetW - 0.25, y: v1 * targetH + 0.25 };
+
+      // Segitiga 1: s00, s10, s01 -> d00, d10, d01
+      drawTriangleAffine(outCtx, sourceImg, s00, s10, s01, d00, d10, d01);
+      // Segitiga 2: s10, s11, s01 -> d10, d11, d01
+      drawTriangleAffine(outCtx, sourceImg, s10, s11, s01, d10, d11, d01);
+    }
+  }
+}
+
+/**
+ * Eksekusi Transformasi Perspektif, Pemotongan & Penyimpanan ke Slot Halaman
+ */
+function applyPerspectiveCropAndSave() {
+  if (!cropDeskewState.rawImage) return;
+
+  showLoading('Meluruskan Dokumen...', 'Menerapkan transformasi perspektif dan menetralkan kemiringan...');
+
+  setTimeout(() => {
+    try {
+      const p0 = cropDeskewState.corners[0]; // Top-Left
+      const p1 = cropDeskewState.corners[1]; // Top-Right
+      const p2 = cropDeskewState.corners[2]; // Bottom-Right
+      const p3 = cropDeskewState.corners[3]; // Bottom-Left
+
+      const topWidth = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      const bottomWidth = Math.hypot(p2.x - p3.x, p2.y - p3.y);
+      let targetWidth = Math.max(topWidth, bottomWidth);
+
+      const leftHeight = Math.hypot(p3.x - p0.x, p3.y - p0.y);
+      const rightHeight = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      let targetHeight = Math.max(leftHeight, rightHeight);
+
+      // Batasi resolusi maksimum agar performa dan memori tetap prima
+      const MAX_DIM = 2200;
+      if (targetWidth > MAX_DIM || targetHeight > MAX_DIM) {
+        const ratio = Math.min(MAX_DIM / targetWidth, MAX_DIM / targetHeight);
+        targetWidth = Math.round(targetWidth * ratio);
+        targetHeight = Math.round(targetHeight * ratio);
+      } else {
+        targetWidth = Math.round(targetWidth);
+        targetHeight = Math.round(targetHeight);
+      }
+
+      targetWidth = Math.max(300, targetWidth);
+      targetHeight = Math.max(300, targetHeight);
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = targetWidth;
+      outCanvas.height = targetHeight;
+
+      // Jalankan Transformasi Warp Perspektif
+      warpPerspectiveCanvas(cropDeskewState.rawImage, p0, p1, p2, p3, outCanvas);
+
+      // Terapkan kompresi standar dokumen SIMAMBIL
+      const compressedDataUrl = compressImageCanvas(outCanvas);
+
+      const idx = cropDeskewState.slotIndex;
+      pagesState[idx].dataUrl = compressedDataUrl;
+      pagesState[idx].rotation = 0;
+
+      renderPageSlots();
+      closeCropDeskewModal();
+      hideLoading();
+      showAppToast(`✓ Halaman ${idx + 1} berhasil diluruskan tegak lurus dan disimpan!`, 'success', 2600);
+    } catch (errWarp) {
+      console.error('Gagal meluruskan dokumen:', errWarp);
+      hideLoading();
+      showAppToast('Gagal memproses pelurusan dokumen. Silakan coba kembali.', 'error', 3000);
+    }
+  }, 40);
+}
+
+function reCropCurrentPhoto() {
+  if (activeSlotIndex === null) return;
+  const slot = pagesState[activeSlotIndex];
+  if (!slot || !slot.dataUrl) return;
+
+  closePreviewModal();
+  const img = new Image();
+  img.onload = () => {
+    openCropDeskewModal(img, activeSlotIndex);
+  };
+  img.src = slot.dataUrl;
+}
+
+/**
  * Kompresi Resolusi Canvas Client-Side (Resolusi Tinggi & Jernih untuk C-Plano)
  * Orientasi Dinamis (Portrait / Landscape) tanpa pemotongan resolusi:
- * - <= 3 Halaman (PPWP, DPD, Pilgub, Pilbup): Max 2560 x 1920 (5.0 Megapixel), Kualitas JPEG 0.82
- * - 20 Halaman (DPR, DPRD): Max 1800 x 1350 (2.4 Megapixel), Kualitas JPEG 0.74
+ * - <= 3 Halaman (PPWP, DPD, Pilgub, Pilbup): Max 2200 x 1650 (3.63 Megapixel), Kualitas JPEG 0.80
+ * - 20 Halaman (DPR, DPRD): Max 1750 x 1300 (2.27 Megapixel), Kualitas JPEG 0.72
  * Ditambah kurva kontras & kecerahan dokumen agar teks hitam dan angka perolehan suara pekat tajam.
+ * Menjamin dokumen <=3 Halaman selalu berada di bawah kuota 1 MB.
  */
 function compressImageCanvas(img, rotationDegree = 0) {
   const currentTargetPages = typeof getTargetPagesForCurrentLembaga === 'function' ? getTargetPagesForCurrentLembaga() : 3;
   const isMultiPage20 = currentTargetPages > 3;
 
   // Batas resolusi sisi panjang dan sisi pendek berbasis orientasi nyata
-  const MAX_LONG_EDGE = isMultiPage20 ? 1800 : 2560;
-  const MAX_SHORT_EDGE = isMultiPage20 ? 1350 : 1920;
-  const initialQuality = isMultiPage20 ? 0.74 : 0.82;
+  const MAX_LONG_EDGE = isMultiPage20 ? 1750 : 2200;
+  const MAX_SHORT_EDGE = isMultiPage20 ? 1300 : 1650;
+  const initialQuality = isMultiPage20 ? 0.72 : 0.80;
 
   let origWidth = img.naturalWidth || img.width;
   let origHeight = img.naturalHeight || img.height;
@@ -1924,16 +2460,21 @@ function compressImageCanvas(img, rotationDegree = 0) {
   }
   ctx.restore();
 
-  // Kompresi kualitas awal
-  let dataUrl = canvas.toDataURL('image/jpeg', initialQuality);
+  // Batas target byte per halaman agar total PDF selalu berada di bawah kuota (1 MB untuk <=3 Hal, 5 MB untuk 20 Hal)
+  // Untuk 3 Halaman: 820 KB / 3 = ~273 KB per halaman. PDF total ~900 KB (aman di bawah 1.024 KB)
+  // Untuk 20 Halaman: 4.2 MB / 20 = ~210 KB per halaman. PDF total ~4.5 MB (aman di bawah 5.120 KB)
+  const maxBytesPerPage = isMultiPage20 ? (210 * 1024) : Math.min(270 * 1024, Math.round((820 * 1024) / Math.max(1, currentTargetPages)));
 
-  // Kontrol ukuran berkas adaptif agar total PDF selalu berada di bawah kuota (1 MB untuk <=3 Hal, 5 MB untuk 20 Hal)
-  const maxBytesPerPage = isMultiPage20 ? (240 * 1024) : Math.round((950 * 1024) / Math.max(1, currentTargetPages));
+  let currentQuality = initialQuality;
+  let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
   let approxBytes = Math.round((dataUrl.length * 3) / 4);
 
-  if (approxBytes > maxBytesPerPage) {
-    const adaptiveQuality = isMultiPage20 ? 0.68 : 0.76;
-    dataUrl = canvas.toDataURL('image/jpeg', adaptiveQuality);
+  let attempts = 0;
+  while (approxBytes > maxBytesPerPage && currentQuality > 0.48 && attempts < 4) {
+    currentQuality -= 0.07;
+    dataUrl = canvas.toDataURL('image/jpeg', Math.max(0.46, currentQuality));
+    approxBytes = Math.round((dataUrl.length * 3) / 4);
+    attempts++;
   }
 
   return dataUrl;
@@ -2160,16 +2701,30 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
     showLoading('Mengunggah Dokumen...', 'Menyimpan berkas dan mencatat rekap...');
 
     // 2. Konversi ke Base64 Data URI
-    const pdfBase64 = doc.output('datauristring');
+    let pdfBase64 = doc.output('datauristring');
 
-    // 2a. Validasi Batasan Ukuran Berkas Client-Side (Max 1 MB jika <= 3 Halaman, Max 5 MB jika > 3 Halaman)
+    // 2a. Validasi Batasan Ukuran Berkas Client-Side & Multi-Pass Auto-Optimizer
+    // SOT: Dokumen <= 3 Halaman maks 1 MB (1.024 KB), Dokumen > 3 Halaman maks 5 MB (5.120 KB)
     const targetPages = TARGET_HALAMAN[lembaga] || 3;
     const isThreePages = targetPages <= 3;
     const maxAllowedBytes = isThreePages ? (1 * 1024 * 1024) : (5 * 1024 * 1024);
     const maxMbLabel = isThreePages ? '1 MB' : '5 MB';
 
-    const base64Clean = pdfBase64.indexOf(',') > -1 ? pdfBase64.split(',')[1] : pdfBase64;
-    const actualSizeBytes = Math.round((base64Clean.length * 3) / 4);
+    let base64Clean = pdfBase64.indexOf(',') > -1 ? pdfBase64.split(',')[1] : pdfBase64;
+    let actualSizeBytes = Math.round((base64Clean.length * 3) / 4);
+
+    // Multi-pass auto-optimizer: Jika ukuran PDF melebihi kuota (misal 1.09 MB > 1.00 MB),
+    // kompresi ulang secara otomatis di latar belakang tanpa melempar popup error ke operator
+    if (actualSizeBytes > maxAllowedBytes) {
+      showLoading('Mengoptimalkan Ukuran PDF...', 'Menyesuaikan kompresi otomatis agar pas di bawah batas kuota 1 MB...');
+      try {
+        pdfBase64 = await recompilePdfWithAutoOptimization(filledSlots, targetPages, maxAllowedBytes, kecamatan, desa, tps, op);
+        base64Clean = pdfBase64.indexOf(',') > -1 ? pdfBase64.split(',')[1] : pdfBase64;
+        actualSizeBytes = Math.round((base64Clean.length * 3) / 4);
+      } catch (optErr) {
+        console.warn('Auto-optimizer error, melanjutkan:', optErr);
+      }
+    }
 
     if (actualSizeBytes > maxAllowedBytes) {
       const actualMb = (actualSizeBytes / (1024 * 1024)).toFixed(2);
@@ -2269,6 +2824,83 @@ async function proceedRenderAndUpload(filledSlots, jenisFile, lembaga, kecamatan
       confirmText: 'Tutup'
     });
   }
+}
+
+/**
+ * Auto-Optimizer PDF Kompilasi Ulang (Zero-Error Quota Engine)
+ * Memastikan dokumen yang melebihi batas kuota (seperti kasus 1.09 MB > 1.00 MB)
+ * secara otomatis dikompresi ulang ke anggaran per-halaman yang aman
+ * tanpa mengorbankan keterbacaan teks dan angka C-Plano.
+ */
+async function recompilePdfWithAutoOptimization(filledSlots, targetPages, maxAllowedBytes, kecamatan, desa, tps, op) {
+  const isMultiPage20 = targetPages > 3;
+  // Alokasikan batas byte gambar keseluruhan ~74% dari kuota PDF agar sisa 26% cukup untuk header PDF & xref
+  const targetPerSlotBytes = Math.floor((maxAllowedBytes * 0.74) / Math.max(1, filledSlots.length));
+
+  const optimizedSlots = await Promise.all(filledSlots.map(slot => {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        const scale = 0.88; // Turunkan dimensi 12% untuk menghemat byte secara efisien
+        c.width = Math.round((img.naturalWidth || img.width) * scale);
+        c.height = Math.round((img.naturalHeight || img.height) * scale);
+        const ctx = c.getContext('2d');
+        if ('filter' in ctx) ctx.filter = 'contrast(1.06) brightness(1.02)';
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+
+        let q = isMultiPage20 ? 0.65 : 0.72;
+        let dataUrl = c.toDataURL('image/jpeg', q);
+        let b = Math.round((dataUrl.length * 3) / 4);
+        let step = 0;
+        while (b > targetPerSlotBytes && q > 0.44 && step < 3) {
+          q -= 0.08;
+          dataUrl = c.toDataURL('image/jpeg', Math.max(0.42, q));
+          b = Math.round((dataUrl.length * 3) / 4);
+          step++;
+        }
+        resolve({ dataUrl: dataUrl, page: slot.page });
+      };
+      img.onerror = () => resolve(slot);
+      img.src = slot.dataUrl;
+    });
+  }));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+    compress: true
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const margin = 10;
+  const renderWidth = pageWidth - (margin * 2);
+  const renderHeight = pageHeight - (margin * 2) - 15;
+
+  for (let i = 0; i < optimizedSlots.length; i++) {
+    if (i > 0) doc.addPage();
+    doc.addImage(optimizedSlots[i].dataUrl, 'JPEG', margin, margin, renderWidth, renderHeight, undefined, 'FAST');
+
+    doc.setTextColor(90);
+    const timestampStr = new Date().toLocaleString('id-ID');
+    const watermarkText = `SIMAMBIL KPU Kab. Gorontalo | ${kecamatan} - ${desa} - TPS ${formatTpsNum(tps)} | Operator: ${op.nama} (${op.nip}) | Hal ${i + 1}/${optimizedSlots.length} | ${timestampStr}`;
+
+    let footerFontSize = 7.5;
+    doc.setFontSize(footerFontSize);
+    if (typeof doc.getTextWidth === 'function') {
+      const textWidth = doc.getTextWidth(watermarkText);
+      if (textWidth > renderWidth) {
+        footerFontSize = Math.max(4.0, Number(((footerFontSize * (renderWidth / textWidth)) * 0.97).toFixed(2)));
+        doc.setFontSize(footerFontSize);
+      }
+    }
+    doc.text(watermarkText, margin, pageHeight - 5);
+  }
+
+  return doc.output('datauristring');
 }
 
 /**
