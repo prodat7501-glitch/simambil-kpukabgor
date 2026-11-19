@@ -1390,11 +1390,30 @@ body {
 }
 
 .preview-controls {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   margin: 0 auto;
+}
+
+.preview-controls .btn {
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  padding: 10px 4px;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.preview-controls .btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 /* Settings & Operator Modal Dialog Box */
