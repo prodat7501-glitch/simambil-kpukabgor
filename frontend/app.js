@@ -3406,6 +3406,275 @@ function compressImageCanvas(img, rotationDegree = 0) {
  * SOT: 02-USER-FLOW.md (Langkah H)
  * ==============================================================================
  */
+const previewZoomState = {
+  initialized: false,
+  scale: 1,
+  minScale: 1,
+  maxScale: 5,
+  tx: 0,
+  ty: 0,
+  isPanning: false,
+  isPinching: false,
+  panStartX: 0,
+  panStartY: 0,
+  panStartTx: 0,
+  panStartTy: 0,
+  pinchStartDist: 0,
+  pinchStartScale: 1,
+  pinchStartTx: 0,
+  pinchStartTy: 0,
+  pinchMidX: 0,
+  pinchMidY: 0,
+  lastTapTime: 0,
+  lastTapX: 0,
+  lastTapY: 0
+};
+
+function clampPreviewPan(scale, tx, ty) {
+  const container = document.getElementById('previewImgContainer');
+  const imgEl = document.getElementById('previewModalImage');
+  if (!container || !imgEl || scale <= 1.001) {
+    return { tx: 0, ty: 0 };
+  }
+  const scaledW = imgEl.offsetWidth * scale;
+  const scaledH = imgEl.offsetHeight * scale;
+  const maxTx = Math.max(0, (scaledW - container.clientWidth) / 2);
+  const maxTy = Math.max(0, (scaledH - container.clientHeight) / 2);
+  return {
+    tx: Math.max(-maxTx, Math.min(maxTx, tx)),
+    ty: Math.max(-maxTy, Math.min(maxTy, ty))
+  };
+}
+
+function applyPreviewTransform(animate = false) {
+  const container = document.getElementById('previewImgContainer');
+  const imgEl = document.getElementById('previewModalImage');
+  const labelEl = document.getElementById('previewZoomLabel');
+  if (!imgEl) return;
+
+  const clamped = clampPreviewPan(previewZoomState.scale, previewZoomState.tx, previewZoomState.ty);
+  previewZoomState.tx = clamped.tx;
+  previewZoomState.ty = clamped.ty;
+
+  if (animate) {
+    imgEl.classList.remove('no-transition');
+  } else {
+    imgEl.classList.add('no-transition');
+  }
+
+  imgEl.style.transform = `translate3d(${previewZoomState.tx.toFixed(1)}px, ${previewZoomState.ty.toFixed(1)}px, 0) scale(${previewZoomState.scale.toFixed(3)})`;
+
+  if (container) {
+    container.classList.toggle('is-zoomed', previewZoomState.scale > 1.02);
+    container.classList.toggle('is-panning', previewZoomState.isPanning);
+  }
+  if (labelEl) {
+    labelEl.textContent = `${Math.round(previewZoomState.scale * 100)}%`;
+  }
+}
+
+function resetPreviewZoom(animate = false) {
+  previewZoomState.scale = 1;
+  previewZoomState.tx = 0;
+  previewZoomState.ty = 0;
+  previewZoomState.isPanning = false;
+  previewZoomState.isPinching = false;
+  applyPreviewTransform(animate);
+}
+
+function zoomPreviewAtPoint(newScale, clientX, clientY, animate = false) {
+  const container = document.getElementById('previewImgContainer');
+  if (!container) return;
+
+  const clampedScale = Math.max(previewZoomState.minScale, Math.min(previewZoomState.maxScale, newScale));
+  if (clampedScale <= 1.02) {
+    resetPreviewZoom(animate);
+    return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  const dx = clientX - (rect.left + rect.width / 2);
+  const dy = clientY - (rect.top + rect.height / 2);
+  const ratio = clampedScale / previewZoomState.scale;
+
+  previewZoomState.tx = dx - (dx - previewZoomState.tx) * ratio;
+  previewZoomState.ty = dy - (dy - previewZoomState.ty) * ratio;
+  previewZoomState.scale = clampedScale;
+  applyPreviewTransform(animate);
+}
+
+function stepPreviewZoom(delta) {
+  const container = document.getElementById('previewImgContainer');
+  if (!container) return;
+  const rect = container.getBoundingClientRect();
+  const nextScale = Math.round((previewZoomState.scale + delta) * 10) / 10;
+  zoomPreviewAtPoint(nextScale, rect.left + rect.width / 2, rect.top + rect.height / 2, true);
+}
+
+function initPreviewZoomControls() {
+  if (previewZoomState.initialized) return;
+  const container = document.getElementById('previewImgContainer');
+  if (!container) return;
+  previewZoomState.initialized = true;
+
+  const isControlTarget = (target) => !!(target && target.closest && target.closest('.preview-zoom-bar'));
+
+  // 1. Touch Events (Pinch-to-Zoom 2 Jari, Geser 1 Jari, Ketuk 2x)
+  container.addEventListener('touchstart', (e) => {
+    if (isControlTarget(e.target)) return;
+
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t0 = e.touches[0], t1 = e.touches[1];
+      const rect = container.getBoundingClientRect();
+      previewZoomState.isPinching = true;
+      previewZoomState.isPanning = false;
+      previewZoomState.pinchStartDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY) || 1;
+      previewZoomState.pinchStartScale = previewZoomState.scale;
+      previewZoomState.pinchStartTx = previewZoomState.tx;
+      previewZoomState.pinchStartTy = previewZoomState.ty;
+      previewZoomState.pinchMidX = (t0.clientX + t1.clientX) / 2 - (rect.left + rect.width / 2);
+      previewZoomState.pinchMidY = (t0.clientY + t1.clientY) / 2 - (rect.top + rect.height / 2);
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      const now = Date.now();
+      const tapDist = Math.hypot(t.clientX - previewZoomState.lastTapX, t.clientY - previewZoomState.lastTapY);
+
+      if (now - previewZoomState.lastTapTime < 300 && tapDist < 36) {
+        e.preventDefault();
+        previewZoomState.lastTapTime = 0;
+        if (previewZoomState.scale > 1.05) {
+          resetPreviewZoom(true);
+        } else {
+          zoomPreviewAtPoint(2.5, t.clientX, t.clientY, true);
+        }
+        return;
+      }
+
+      previewZoomState.lastTapTime = now;
+      previewZoomState.lastTapX = t.clientX;
+      previewZoomState.lastTapY = t.clientY;
+
+      if (previewZoomState.scale > 1.02) {
+        e.preventDefault();
+        previewZoomState.isPanning = true;
+        previewZoomState.panStartX = t.clientX;
+        previewZoomState.panStartY = t.clientY;
+        previewZoomState.panStartTx = previewZoomState.tx;
+        previewZoomState.panStartTy = previewZoomState.ty;
+        applyPreviewTransform(false);
+      }
+    }
+  }, { passive: false });
+
+  container.addEventListener('touchmove', (e) => {
+    if (isControlTarget(e.target)) return;
+
+    if (e.touches.length === 2 && previewZoomState.isPinching) {
+      e.preventDefault();
+      const t0 = e.touches[0], t1 = e.touches[1];
+      const rect = container.getBoundingClientRect();
+      const currDist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY) || 1;
+      const currMidX = (t0.clientX + t1.clientX) / 2 - (rect.left + rect.width / 2);
+      const currMidY = (t0.clientY + t1.clientY) / 2 - (rect.top + rect.height / 2);
+
+      const newScale = Math.max(
+        previewZoomState.minScale,
+        Math.min(previewZoomState.maxScale, previewZoomState.pinchStartScale * (currDist / previewZoomState.pinchStartDist))
+      );
+      const ratio = newScale / previewZoomState.pinchStartScale;
+
+      previewZoomState.scale = newScale;
+      previewZoomState.tx = currMidX - (previewZoomState.pinchMidX - previewZoomState.pinchStartTx) * ratio;
+      previewZoomState.ty = currMidY - (previewZoomState.pinchMidY - previewZoomState.pinchStartTy) * ratio;
+      applyPreviewTransform(false);
+      return;
+    }
+
+    if (e.touches.length === 1 && previewZoomState.isPanning && previewZoomState.scale > 1.02) {
+      e.preventDefault();
+      const t = e.touches[0];
+      previewZoomState.tx = previewZoomState.panStartTx + (t.clientX - previewZoomState.panStartX);
+      previewZoomState.ty = previewZoomState.panStartTy + (t.clientY - previewZoomState.panStartY);
+      applyPreviewTransform(false);
+    }
+  }, { passive: false });
+
+  container.addEventListener('touchend', (e) => {
+    if (previewZoomState.isPinching && e.touches.length === 1) {
+      // Transisi mulus dari pinch 2 jari ke pan 1 jari tanpa lompat
+      previewZoomState.isPinching = false;
+      if (previewZoomState.scale > 1.02) {
+        const t = e.touches[0];
+        previewZoomState.isPanning = true;
+        previewZoomState.panStartX = t.clientX;
+        previewZoomState.panStartY = t.clientY;
+        previewZoomState.panStartTx = previewZoomState.tx;
+        previewZoomState.panStartTy = previewZoomState.ty;
+      }
+      return;
+    }
+
+    if (e.touches.length === 0) {
+      previewZoomState.isPinching = false;
+      previewZoomState.isPanning = false;
+      if (previewZoomState.scale < 1.03) {
+        resetPreviewZoom(true);
+      } else {
+        applyPreviewTransform(true);
+      }
+    }
+  });
+
+  // 2. Desktop Mouse Wheel Zoom
+  container.addEventListener('wheel', (e) => {
+    if (isControlTarget(e.target)) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+    zoomPreviewAtPoint(previewZoomState.scale * factor, e.clientX, e.clientY, false);
+  }, { passive: false });
+
+  // 3. Desktop Double-Click Toggle Zoom
+  container.addEventListener('dblclick', (e) => {
+    if (isControlTarget(e.target)) return;
+    e.preventDefault();
+    if (previewZoomState.scale > 1.05) {
+      resetPreviewZoom(true);
+    } else {
+      zoomPreviewAtPoint(2.5, e.clientX, e.clientY, true);
+    }
+  });
+
+  // 4. Desktop Mouse Drag Pan
+  container.addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || isControlTarget(e.target)) return;
+    if (previewZoomState.scale <= 1.02) return;
+    e.preventDefault();
+    previewZoomState.isPanning = true;
+    previewZoomState.panStartX = e.clientX;
+    previewZoomState.panStartY = e.clientY;
+    previewZoomState.panStartTx = previewZoomState.tx;
+    previewZoomState.panStartTy = previewZoomState.ty;
+    applyPreviewTransform(false);
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!previewZoomState.isPanning) return;
+    previewZoomState.tx = previewZoomState.panStartTx + (e.clientX - previewZoomState.panStartX);
+    previewZoomState.ty = previewZoomState.panStartTy + (e.clientY - previewZoomState.panStartY);
+    applyPreviewTransform(false);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!previewZoomState.isPanning) return;
+    previewZoomState.isPanning = false;
+    applyPreviewTransform(true);
+  });
+}
+
 function openPreviewModal(index) {
   activeSlotIndex = index;
   const slot = pagesState[index];
@@ -3416,12 +3685,15 @@ function openPreviewModal(index) {
   if (title) title.textContent = `Preview Halaman ${slot.page}`;
   if (imgEl) imgEl.src = slot.dataUrl;
 
+  initPreviewZoomControls();
+  resetPreviewZoom(false);
   modal.classList.add('active');
 }
 
 function closePreviewModal() {
   const modal = document.getElementById('previewModal');
   modal.classList.remove('active');
+  resetPreviewZoom(false);
 }
 
 function rotateCurrentPhoto() {
@@ -3437,6 +3709,7 @@ function rotateCurrentPhoto() {
     
     const previewImg = document.getElementById('previewModalImage');
     if (previewImg) previewImg.src = newRotatedData;
+    resetPreviewZoom(false);
 
     renderPageSlots();
     hideLoading();

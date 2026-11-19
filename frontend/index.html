@@ -551,13 +551,21 @@
     <!-- PREVIEW & ROTATE MODAL                                                    -->
     <!-- ========================================================================= -->
     <div id="previewModal" class="preview-modal">
-      <div style="display: flex; justify-content: space-between; align-items: center; color: white;">
-        <span id="previewModalTitle" style="font-weight: 700; font-size: 14px;">Preview Halaman 1</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; color: white; gap: 10px;">
+        <div style="min-width: 0;">
+          <div id="previewModalTitle" style="font-weight: 700; font-size: 14px;">Preview Halaman 1</div>
+          <div style="font-size: 11px; color: #cbd5e1; margin-top: 2px;">Cubit layar / ketuk 2x untuk zoom &amp; geser</div>
+        </div>
         <button class="camera-close-btn" onclick="closePreviewModal()">&times;</button>
       </div>
 
-      <div class="preview-img-container">
-        <img id="previewModalImage" class="preview-img" src="" alt="Preview Foto">
+      <div id="previewImgContainer" class="preview-img-container">
+        <img id="previewModalImage" class="preview-img" src="" alt="Preview Foto" draggable="false">
+        <div class="preview-zoom-bar" onclick="event.stopPropagation()">
+          <button type="button" class="preview-zoom-btn" onclick="stepPreviewZoom(-0.5)" title="Perkecil (Zoom Out)" aria-label="Perkecil">&minus;</button>
+          <button type="button" id="previewZoomLabel" class="preview-zoom-label" onclick="resetPreviewZoom(true)" title="Reset Zoom ke 100%">100%</button>
+          <button type="button" class="preview-zoom-btn" onclick="stepPreviewZoom(0.5)" title="Perbesar (Zoom In)" aria-label="Perbesar">+</button>
+        </div>
       </div>
 
       <div class="preview-controls">

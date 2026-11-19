@@ -1296,20 +1296,97 @@ body {
 
 .preview-img-container {
   flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   position: relative;
-  margin: 20px 0;
+  margin: 12px 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: zoom-in;
+}
+
+.preview-img-container.is-zoomed {
+  cursor: grab;
+}
+
+.preview-img-container.is-panning {
+  cursor: grabbing;
 }
 
 .preview-img {
-  max-width: 90%;
-  max-height: 80vh;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   border-radius: 8px;
-  transition: transform 0.2s ease;
+  transform-origin: center center;
+  will-change: transform;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.preview-img.no-transition {
+  transition: none !important;
+}
+
+.preview-zoom-bar {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 4px;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.preview-zoom-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.preview-zoom-btn:active {
+  background: rgba(255, 255, 255, 0.28);
+  transform: scale(0.92);
+}
+
+.preview-zoom-label {
+  min-width: 48px;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.preview-zoom-label:active {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .preview-controls {
